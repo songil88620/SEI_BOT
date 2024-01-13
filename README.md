@@ -6,7 +6,7 @@
 [circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
 [circleci-url]: https://circleci.com/gh/nestjs/nest
 
-  <p align="center">Sniper Bot</p>
+  <p align="center">SEI Bot</p>
     <p align="center">
 <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
 <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
@@ -22,43 +22,7 @@
 </p>
   <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-- To run the project, you must add two environment variables:
-
-  1. `TELEGRAM_TOKEN` -> Your telegram token
-  2. `TEST_CHAT_ID` -> A test chat id for your code to send messages
-
-- [BotFather manual for developers](https://core.telegram.org/bots)
-- [BotFather contact on Telegram](https://telegram.me/BotFather)
-- [NPM Package for Telegram](https://www.npmjs.com/package/node-telegram-bot-api)
-
-## Video fixes
-
-1. You can actually install types for the project by running: `yarn add @types/node-telegram-bot-api --dev`. There are commented lines on the service layer with the typed code
-2. You actually must send a message to a `chat_id` rather than a `user_id` on Telegram. However, if you are sending a message to one user directly rather than a group with multiple users, then the `chat_id` is the same as the `user_id` as the example below:
-
-```javascript
-  {
-  "message_id": 9,
-  "from": {
-    "id": 123123123, // this is a user id (is the same as the chat id if you are sending a message to one person directly)
-    "is_bot": false,
-    "first_name": "UserFirstName",
-    "last_name": "UserLastName",
-    "language_code": "en"
-  },
-  "chat": {
-    "id": 123123123, // this is the one that you actually send a message to, but it is ok to use the previous one if you want to send a message to one person directly
-    "first_name": "UserFirstName",
-    "last_name": "UserLastName",
-    "type": "private"
-},
-"date": 1669948713,
-"text": "Message sent by user on Telegram"
-}
-```
+ 
 
 ## Installation
 
