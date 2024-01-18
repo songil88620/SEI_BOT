@@ -33,15 +33,26 @@ export class UserService {
     return await this.model.findOneAndUpdate({ id: id }, data, { new: true }).exec()
   }
 
+  async updateReferral(code: string, u_code: string) {
+    const user = await this.model.findOne({ code }).exec();
+    var referral = user.referral;
+    if (!referral.includes(u_code) && user.code != u_code) {
+      referral.push(u_code);
+    }
+    const id = user.id;
+    await this.model.findOneAndUpdate({ id }, { referral }, { new: true }).exec();
+  }
+
+  // yet not used
   async findUserBySniper(contract: string) {
     const users = await this.model.find().exec();
     const _users = [];
     users.forEach((u) => {
       if (u.sniper.contract.toLowerCase() == contract.toLowerCase()) {
-        var wallet = [] 
+        var wallet = []
         wallet.push(u.wallet.key)
         const user = {
-          id: u.id, 
+          id: u.id,
           contract: u.sniper.contract.toLowerCase(),
           buyamount: u.sniper.buyamount,
           gasprice: u.sniper.gasprice,
@@ -60,14 +71,6 @@ export class UserService {
     return _users;
   }
 
-  async updateReferral(code: string, u_code: string) {
-    const user = await this.model.findOne({ code }).exec();
-    var referral = user.referral;
-    if (!referral.includes(u_code)) {
-      referral.push(u_code);
-    }
-    const id = user.id;
-    await this.model.findOneAndUpdate({ id }, { referral }, { new: true }).exec();
-  }
+  
 
 }

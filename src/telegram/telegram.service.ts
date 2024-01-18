@@ -2,7 +2,7 @@ import { Inject, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Injectable, Logger } from '@nestjs/common';
 import { TG_TOKEN } from 'src/constant';
 import { UserService } from 'src/user/user.service';
-import { CHAIN_ID, Methods, REST_URL, RPC_URL, myName, tokenListForSwap, wethAddress } from 'src/abi/constants';
+import { CHAIN_ID, Methods, REST_URL, RPC_URL, myName, wethAddress } from 'src/abi/constants';
 import { SwapService } from 'src/swap/swap.service';
 import { standardABI } from 'src/abi/standard';
 import { SnipeService } from 'src/snipe/snipe.service';
@@ -10,7 +10,8 @@ import axios from 'axios';
 import { uid } from 'uid';
 import { generateWallet, restoreWallet, isValidSeiAddress, getQueryClient, getSigningClient } from "@sei-js/core";
 import { calculateFee } from "@cosmjs/stargate";
-
+import { PairService } from 'src/pair/pair.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 const fs = require('fs')
 const path = require('path')
@@ -37,10 +38,14 @@ export class TelegramService implements OnModuleInit {
 
     private lastMsg: number = 0;
 
+    private hotListForSwap = [];
+    private allListForSwap = [];
+
     constructor(
         @Inject(forwardRef(() => UserService)) private userService: UserService,
         @Inject(forwardRef(() => SwapService)) private swapService: SwapService,
         @Inject(forwardRef(() => SnipeService)) private snipeService: SnipeService,
+        @Inject(forwardRef(() => PairService)) private pairService: PairService,
     ) {
         this.bot = new TelegramBot(TG_TOKEN, { polling: true });
         this.bot.setMyCommands(Commands)
@@ -49,15 +54,22 @@ export class TelegramService implements OnModuleInit {
 
     }
 
-    async onModuleInit() {
-
-
-
-
-
-
+    onModuleInit = async () => {
+        await this.updateListForSwap();
     }
 
+    @Cron(CronExpression.EVERY_5_MINUTES, { name: 'list_bot' })
+    async listBot() {
+        await this.updateListForSwap();
+    }
+
+    updateListForSwap = async () => {
+        const hot = await this.pairService.getHotPair(8);
+        const all = await this.pairService.findAll();
+        const sei = { name: "SEI", denom: "usei", decimal: 6 };
+        this.hotListForSwap = [sei, ...hot];
+        this.allListForSwap = [sei, ...all]
+    }
 
     cleanrMessage = async (chatid: number, msgid: number) => {
         for (var i = 0; i <= 10; i++) {
@@ -66,7 +78,6 @@ export class TelegramService implements OnModuleInit {
             } catch (e) { }
         }
     }
-
 
     onQueryMessage = async (query: any) => {
         try {
@@ -92,7 +103,25 @@ export class TelegramService implements OnModuleInit {
 
                 }
                 if (cmd == 'call_m_referrals') {
+                    const user = await this.userService.findOne(id);
+                    const code = user.code;
+                    const referr_len = user.referral.length;
+                    var refs = [];
+                    // for (var i = 0; i < user.referral.length; i++) {
+                    //     const u_id = user.referral[i];
+                    //     const ref_data = await this.logService.getTotalVolume(u_id);
+                    //     if (ref_data.status) {
+                    //         refs.push(ref_data)
+                    //     }
+                    // }
+                    var ref_msg = ""
+                    refs.forEach((r) => {
+                        ref_msg = ref_msg + "<b>" + r.u + " : " + r.t + " ETH</b>\n"
+                    })
 
+                    await this.bot.sendMessage(id, "<b>Your referral link : </b><code>" + myName + "?start=_" + code + "</code>\n<b>Referral Users : " + referr_len + "</b>\n" + ref_msg, { parse_mode: "HTML" });
+                    await this.sendStartSelectOption(id);
+                    await this.cleanrMessage(query.message.chat.id, msgid)
                 }
                 if (cmd == 'call_m_leaderboard') {
 
@@ -151,7 +180,7 @@ export class TelegramService implements OnModuleInit {
 
                 if (cmd.includes('buysell_contract_')) {
                     const token_name = cmd.substring(17);
-                    const t = tokenListForSwap.filter((e) => e.name == token_name);
+                    const t = this.hotListForSwap.filter((e) => e.name == token_name);
                     const token_address = t[0].denom;
                     var swap = user.swap;
                     swap.token = token_address;
@@ -176,10 +205,14 @@ export class TelegramService implements OnModuleInit {
                     await this.bot.sendMessage(id, "<b>Slippage(buy&sell)</b>", options);
                 }
                 if (cmd == 'buysell_buy') {
-
+                    await this.bot.sendMessage(id, "<b>⌛ Wait a moment...</b>", { parse_mode: "HTML" });
+                    await this.swapService.buy_token(id)
+                    await this.panel_buysell(id)
                 }
                 if (cmd == 'buysell_sell') {
-
+                    await this.bot.sendMessage(id, "<b>⌛ Wait a moment...</b>", { parse_mode: "HTML" });
+                    await this.swapService.sell_token(id)
+                    await this.panel_buysell(id)
                 }
             }
 
@@ -193,7 +226,7 @@ export class TelegramService implements OnModuleInit {
                 };
                 if (cmd.includes('transfer_contract_')) {
                     const token_name = cmd.substring(18);
-                    const t = tokenListForSwap.filter((e) => e.name == token_name);
+                    const t = this.hotListForSwap.filter((e) => e.name == token_name);
                     const token_address = t[0].denom;
                     var transfer = user.transfer;
                     transfer.token = token_address;
@@ -304,7 +337,7 @@ export class TelegramService implements OnModuleInit {
                     token: "",
                     amount: "0",
                     gasprice: "1",
-                    slippage: "0.1",
+                    slippage: "0.5",
                 }
 
                 const transfer = {
@@ -317,7 +350,7 @@ export class TelegramService implements OnModuleInit {
                     address: "",
                     amount: "0",
                     gasprice: "1",
-                    slippage: "0.1",
+                    slippage: "0.5",
                     private: false
                 }
 
@@ -333,7 +366,7 @@ export class TelegramService implements OnModuleInit {
                     result: false,
                     except: false,
                     gasprice: "1",
-                    slippage: "0.1",
+                    slippage: "0.5",
                     private: false
                 }
                 const perps = {
@@ -418,7 +451,7 @@ export class TelegramService implements OnModuleInit {
             // ------------ buy&sell setting -------------
 
             if (reply_msg == 'Token Denom OR Address(buy&sell)') {
-                if (isValidSeiAddress(message)) {
+                if (message.slice(0, 3) == 'sei' || message.slice(0, 3) == 'ibc') {
                     var swap = user.swap;
                     swap.token = message;
                     await this.userService.update(userid, { swap });
@@ -577,21 +610,7 @@ export class TelegramService implements OnModuleInit {
         const user = await this.userService.findOne(userId);
         const w = user.wallet;
         if (w.key != "") {
-            var sei_balance = 0;
-            const queryClient = await getQueryClient(REST_URL);
-            const bs = await queryClient.cosmos.bank.v1beta1.allBalances({
-                address: w.address,
-                pagination: undefined
-            });
-            const balances = bs.balances;
-            console.log(">>>bala", bs)
-            balances.forEach((b) => {
-                if (b.denom == 'usei') {
-                    sei_balance = Number(b.amount.toString()) / 10 ** 6;
-                }
-            })
-
-            console.log(">>BB", sei_balance)
+            var sei_balance = await this.swapService.getSeiBalance(userId);
             const w_msg = "<b>💳 Wallet " + "</b> \n<b>Address:</b> <code>" + w.address +
                 "</code>\n<b>Seed:</b> <code>" + w.key + "</code>\n" +
                 "<b>Balance:</b> <code>" + sei_balance + " SEI</code>\n\n" +
@@ -635,14 +654,14 @@ export class TelegramService implements OnModuleInit {
 
         var inline_key = [];
         var tmp = [];
-        for (var i = 1; i < tokenListForSwap.length; i++) {
-            tmp.push({ text: token == tokenListForSwap[i].denom ? "✅ " + tokenListForSwap[i].name : tokenListForSwap[i].name, callback_data: "buysell_contract_" + tokenListForSwap[i].name });
-            if (i % 4 == 3) {
+        for (var i = 1; i < this.hotListForSwap.length; i++) {
+            tmp.push({ text: token == this.hotListForSwap[i].denom ? "✅ " + this.hotListForSwap[i].name : this.hotListForSwap[i].name, callback_data: "buysell_contract_" + this.hotListForSwap[i].name });
+            if ((i - 1) % 4 == 3) {
                 inline_key.push(tmp);
                 tmp = [];
             }
         }
-        if ((tokenListForSwap.length - 1) % 4 != 3) {
+        if ((this.hotListForSwap.length - 1) % 4 != 3) {
             inline_key.push(tmp);
         }
 
@@ -653,8 +672,8 @@ export class TelegramService implements OnModuleInit {
             { text: 'Slippage (' + slippage + '%)', callback_data: 'buysell_slippage' }
         ]);
         inline_key.push([
-            { text: 'Buy', callback_data: 'buysell_buy' },
-            { text: 'Sell', callback_data: 'buysell_sell' }
+            { text: 'Buy with SEI', callback_data: 'buysell_buy' },
+            { text: 'Sell for SEI', callback_data: 'buysell_sell' }
         ]);
         inline_key.push([{ text: 'Back', callback_data: 'to_start' }]);
 
@@ -677,14 +696,15 @@ export class TelegramService implements OnModuleInit {
 
         var inline_key = [];
         var tmp = [];
-        for (var i = 0; i < tokenListForSwap.length; i++) {
-            tmp.push({ text: token == tokenListForSwap[i].denom ? "✅ " + tokenListForSwap[i].name : tokenListForSwap[i].name, callback_data: "transfer_contract_" + tokenListForSwap[i].name });
+
+        for (var i = 0; i < this.hotListForSwap.length - 1; i++) {
+            tmp.push({ text: token == this.hotListForSwap[i].denom ? "✅ " + this.hotListForSwap[i].name : this.hotListForSwap[i].name, callback_data: "transfer_contract_" + this.hotListForSwap[i].name });
             if (i % 4 == 3) {
                 inline_key.push(tmp);
                 tmp = [];
             }
         }
-        if ((tokenListForSwap.length - 1) % 4 != 3) {
+        if ((this.hotListForSwap.length - 1) % 4 != 3) {
             inline_key.push(tmp);
         }
 
@@ -718,7 +738,7 @@ export class TelegramService implements OnModuleInit {
                         { text: 'Snipe token', callback_data: 'call_m_snipe' }
                     ],
                     [
-                        { text: 'Referrals', callback_data: 'call_m_referrals' },
+                        { text: 'My Referrals', callback_data: 'call_m_referrals' },
                         { text: 'Leaderboard', callback_data: 'call_m_leaderboard' }
                     ],
                 ]
@@ -736,6 +756,9 @@ export class TelegramService implements OnModuleInit {
             await this.bot.sendMessage(userId, "<b>" + msg + "</b> \n\n", options);
         } else if (status == 300) {
             await this.bot.sendMessage(userId, "<b>📢 Setting missed.</b> \n\n", options);
+            await this.bot.sendMessage(userId, "<b>" + msg + "</b> \n\n", options);
+        } else if (status == 301) {
+            await this.bot.sendMessage(userId, "<b>📢 Balance low.</b> \n\n", options);
             await this.bot.sendMessage(userId, "<b>" + msg + "</b> \n\n", options);
         } else {
             await this.bot.sendMessage(userId, "<b>💡 Transaction failed.</b> \n\n", options);

@@ -10,8 +10,7 @@ import { SwapService } from 'src/swap/swap.service';
 export class BotService implements OnModuleInit {
 
     public tokenList: string[];
-    public tokenPrice: {};
-    public ethPrice: number;
+    public tokenPrice: {}; 
 
     constructor(
         @Inject(forwardRef(() => UserService)) private userService: UserService, 
@@ -31,11 +30,7 @@ export class BotService implements OnModuleInit {
 
     async getTokenPrice(tokenAddress: string) { 
        
-    }
-
-    async getEthPrice() {
-        return this.ethPrice;
-    }
+    }  
 
     @Cron(CronExpression.EVERY_5_MINUTES, { name: 'fee_bot' })
     async feeBot() {

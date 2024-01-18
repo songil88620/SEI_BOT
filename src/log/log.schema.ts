@@ -7,16 +7,13 @@ export type LogDocument = Log & Document;
 export class Log {
 
     @Prop()
-    id: string;
-
-    @Prop()
-    mode: string;
+    id: string;  
 
     @Prop()
     hash: string;
 
     @Prop()
-    panel: number;
+    mode: string;
 
     @Prop()
     tokenA: string;
@@ -26,6 +23,9 @@ export class Log {
 
     @Prop()
     amount: string;
+
+    @Prop()
+    t_amount: string;
 
     @Prop()
     created: string;

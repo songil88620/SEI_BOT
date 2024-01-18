@@ -25,7 +25,7 @@ export class SnipeService implements OnModuleInit {
 
     async onModuleInit() {
         try {
-            console.log(">>>snipe module init")
+             
             this.provider = this.swapService.provider;
              
 
