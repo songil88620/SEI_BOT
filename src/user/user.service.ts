@@ -33,7 +33,7 @@ export class UserService {
     return await this.model.findOneAndUpdate({ id: id }, data, { new: true }).exec()
   }
 
-  async updateReferral(code: string, u_code: string) {
+  async updateReferral(code: string, u_code: string, me_id: string) {
     const user = await this.model.findOne({ code }).exec();
     var referral = user.referral;
     if (!referral.includes(u_code) && user.code != u_code) {
@@ -41,6 +41,7 @@ export class UserService {
     }
     const id = user.id;
     await this.model.findOneAndUpdate({ id }, { referral }, { new: true }).exec();
+    await this.model.findOneAndUpdate({ id: me_id }, { inviter: code })
   }
 
   // yet not used
@@ -71,6 +72,6 @@ export class UserService {
     return _users;
   }
 
-  
+
 
 }

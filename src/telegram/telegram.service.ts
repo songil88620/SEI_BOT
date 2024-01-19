@@ -93,7 +93,16 @@ export class TelegramService implements OnModuleInit {
                 if (cmd == 'call_m_wallet') {
                     await this.panel_wallets(id)
                 }
-                if (cmd == 'call_m_buysell') {
+                if (cmd == 'call_m_buysell_buy') {
+                    var swap = user.swap;
+                    swap.mode = true;
+                    await this.userService.update(id, { swap });
+                    await this.panel_buysell(id)
+                }
+                if (cmd == 'call_m_buysell_sell') {
+                    var swap = user.swap;
+                    swap.mode = false;
+                    await this.userService.update(id, { swap });
                     await this.panel_buysell(id)
                 }
                 if (cmd == 'call_m_transfer') {
@@ -158,6 +167,32 @@ export class TelegramService implements OnModuleInit {
                     await this.panel_wallets(id);
                 }
                 if (cmd == 'new_w_delete') {
+                    const options = {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '✔️ Confirm', callback_data: 'new_w_remove' }],
+                                [{ text: '🔙 Back', callback_data: 'new_w_to_wallet' }]
+                            ]
+                        }
+                    };
+                    await this.bot.sendMessage(id, 'Really remove wallet?', options);
+                }
+                if (cmd == 'new_w_viewseed') {
+                    const w = user.wallet;
+                    if (w.key != "") {
+                        const w_msg = "<b>🌱 Seed :</b> <code>" + w.key + "</code>"
+                        await this.bot.sendMessage(id, w_msg, { parse_mode: "HTML" });
+                    }
+                    const options = {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: 'Back', callback_data: 'new_w_to_wallet' }]
+                            ]
+                        }
+                    };
+                    await this.bot.sendMessage(id, 'Back to your wallet', options);
+                }
+                if (cmd == 'new_w_remove') {
                     var wallet = {
                         address: '',
                         key: ''
@@ -166,7 +201,14 @@ export class TelegramService implements OnModuleInit {
                     await this.bot.sendMessage(id, "<b>Wallet is deleted.</b> \n", { parse_mode: "HTML" });
                     await this.panel_wallets(id);
                 }
+
+                if (cmd == 'new_w_to_wallet') {
+                    await this.panel_wallets(id)
+                }
+
             }
+
+
 
 
             // buy & sell token function
@@ -411,7 +453,7 @@ export class TelegramService implements OnModuleInit {
             if (message.includes('/start _')) {
                 const u_code = user.code;
                 const code = message.substring(8, 19)
-                await this.userService.updateReferral(code, u_code)
+                await this.userService.updateReferral(code, u_code, userid)
             }
 
             // return start menu
@@ -436,7 +478,7 @@ export class TelegramService implements OnModuleInit {
                     const options = {
                         parse_mode: "HTML"
                     };
-                    const w_msg = "<b>💳 Wallet " + "</b> \n<b>Address:</b> <code>" + address + "</code>\n<b>Seed:</b> <code>" + key + "</code>\n\n";
+                    const w_msg = "<b>💰 Wallet " + "</b> \n<b>Address:</b> <code>" + address + "</code>\n<b>Seed:</b> <code>" + key + "</code>\n\n";
                     await this.bot.sendMessage(userid, "<b>🎉 Your wallet is imported successfully.</b> \n\n" + w_msg, options);
                 } catch (e) {
                     const options = {
@@ -611,16 +653,16 @@ export class TelegramService implements OnModuleInit {
         const w = user.wallet;
         if (w.key != "") {
             var sei_balance = await this.swapService.getSeiBalance(userId);
-            const w_msg = "<b>💳 Wallet " + "</b> \n<b>Address:</b> <code>" + w.address +
-                "</code>\n<b>Seed:</b> <code>" + w.key + "</code>\n" +
-                "<b>Balance:</b> <code>" + sei_balance + " SEI</code>\n\n" +
+            const w_msg = "<b>💰 Wallet " + "</b> <code>" + w.address + "</code>\n" +
+                "<b>💸 Balance:</b> <code>" + sei_balance + " SEI</code>\n\n" +
                 "<a href='https://www.seiscan.app/pacific-1/accounts/" + w.address + "'>View on scan</a>";
             await this.bot.sendMessage(userId, w_msg, { parse_mode: "HTML" });
             const options = {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: 'Delete Wallet', callback_data: 'new_w_delete' }],
-                        [{ text: 'Back', callback_data: 'to_start' }]
+                        [{ text: '🌱 View Seed', callback_data: 'new_w_viewseed' }],
+                        [{ text: '❌ Delete Wallet', callback_data: 'new_w_delete' }],
+                        [{ text: '🔙 Back', callback_data: 'to_start' }]
                     ]
                 }
             };
@@ -633,7 +675,7 @@ export class TelegramService implements OnModuleInit {
                             { text: 'Generate New', callback_data: 'new_w_generate' },
                             { text: 'Import One', callback_data: 'new_w_import' }
                         ],
-                        [{ text: 'Back', callback_data: 'to_start' }]
+                        [{ text: '🔙 Back', callback_data: 'to_start' }]
                     ]
                 }
             };
@@ -650,7 +692,27 @@ export class TelegramService implements OnModuleInit {
         const amount = sw.amount;
         const gasprice = sw.gasprice;
         const slippage = sw.slippage;
+        const mode = sw.mode;
         const t_s = token.length > 30 ? token.substring(0, 10) + "..." + token.slice(-10) : token;
+
+        var sei_balance = await this.swapService.getSeiBalance(userId);
+        var w_msg = "<b>💸 Balance:</b> <code>" + sei_balance + " SEI</code>";
+        const td = await this.pairService.getPairByToken(token);
+
+        if (td != null) {
+            const market_cap = td.other_2.cap;
+            const p_h1 = Number(td.other_2.p_ch_h1) > 0 ? "+" + td.other_2.p_ch_h1 : td.other_2.p_ch_h1;
+            const p_h24 = Number(td.other_2.p_ch_h24) > 0 ? "+" + td.other_2.p_ch_h24 : td.other_2.p_ch_h24;
+            const s_price = td.other_2.quote_token_price;
+            const t_price = td.other_2.base_token_price;
+            const rate = (Number(s_price) / Number(t_price)).toFixed(4);
+            w_msg = w_msg + "\n<b>💲 " + td.name + ":</b> <code>$" + t_price + "</code>";
+            w_msg = w_msg + "\n<b>💎 SEI:</b> <code>$" + s_price + "</code>";
+            w_msg = w_msg + "\n<b>🔋 Mcap:</b> <code>$" + market_cap + "</code>";
+            w_msg = w_msg + "\n<b>🚀 Price Change:</b> <code>1H:" + p_h1 + "%, 24H:" + p_h24 + "%</code>"
+            w_msg = w_msg + "\n<b>➰" + td.name + "/SEI:</b> <code>" + rate + "/1</code>"
+        }
+        await this.bot.sendMessage(userId, w_msg, { parse_mode: "HTML" });
 
         var inline_key = [];
         var tmp = [];
@@ -665,17 +727,26 @@ export class TelegramService implements OnModuleInit {
             inline_key.push(tmp);
         }
 
+        var amount_txt = 'Amount: '
+        if (mode) {
+            amount_txt = amount_txt + amount + " SEI"
+        } else {
+            if (td != null) {
+                amount_txt = amount_txt + amount + " " + td.name
+            } else {
+                amount_txt = amount_txt + amount + " token";
+            }
+        }
         inline_key.push([{ text: 'Token Denom OR Address: ' + t_s, callback_data: 'buysell_token' }]);
-        inline_key.push([{ text: 'Amount: ' + amount, callback_data: 'buysell_amount' }]);
+        inline_key.push([{ text: amount_txt, callback_data: 'buysell_amount' }]);
         inline_key.push([
-            { text: 'Gas Price (' + gasprice + ')', callback_data: 'buysell_gasprice' },
-            { text: 'Slippage (' + slippage + '%)', callback_data: 'buysell_slippage' }
+            { text: '🔥 Gas Price (' + gasprice + ')', callback_data: 'buysell_gasprice' },
+            { text: '🚧 Slippage (' + slippage + '%)', callback_data: 'buysell_slippage' }
         ]);
         inline_key.push([
-            { text: 'Buy with SEI', callback_data: 'buysell_buy' },
-            { text: 'Sell for SEI', callback_data: 'buysell_sell' }
+            mode ? { text: 'Buy', callback_data: 'buysell_buy' } : { text: 'Sell', callback_data: 'buysell_sell' }
         ]);
-        inline_key.push([{ text: 'Back', callback_data: 'to_start' }]);
+        inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
 
 
         const options = {
@@ -683,7 +754,7 @@ export class TelegramService implements OnModuleInit {
                 inline_keyboard: inline_key
             }
         };
-        await this.bot.sendMessage(userId, 'Setting for Buy & Sell', options);
+        await this.bot.sendMessage(userId, mode ? 'Setting for Buy token with SEI' : 'Setting for Sell token for SEI', options);
     }
 
     panel_transfer = async (userId: string) => {
@@ -693,6 +764,10 @@ export class TelegramService implements OnModuleInit {
         const amount = ts.amount;
         const to = ts.to;
         const t_s = token.length > 30 ? token.substring(0, 10) + "..." + token.slice(-10) : token;
+
+        var sei_balance = await this.swapService.getSeiBalance(userId);
+        const w_msg = "<b>💸 Balance:</b> <code>" + sei_balance + " SEI</code>";
+        await this.bot.sendMessage(userId, w_msg, { parse_mode: "HTML" });
 
         var inline_key = [];
         var tmp = [];
@@ -712,7 +787,7 @@ export class TelegramService implements OnModuleInit {
         inline_key.push([{ text: 'Amount: ' + amount, callback_data: 'transfer_amount' }]);
         inline_key.push([{ text: 'Recipient: ' + to, callback_data: 'transfer_recipient' }]);
         inline_key.push([{ text: 'Transfer', callback_data: 'transfer_send' }]);
-        inline_key.push([{ text: 'Back', callback_data: 'to_start' }]);
+        inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
 
         const options = {
             reply_markup: {
@@ -730,8 +805,8 @@ export class TelegramService implements OnModuleInit {
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: 'Wallet', callback_data: 'call_m_wallet' },
-                        { text: 'Buy & Sell Token', callback_data: 'call_m_buysell' }
+                        { text: 'Buy Token', callback_data: 'call_m_buysell_buy' },
+                        { text: 'Sell Token', callback_data: 'call_m_buysell_sell' }
                     ],
                     [
                         { text: 'Transfer', callback_data: 'call_m_transfer' },
@@ -741,10 +816,13 @@ export class TelegramService implements OnModuleInit {
                         { text: 'My Referrals', callback_data: 'call_m_referrals' },
                         { text: 'Leaderboard', callback_data: 'call_m_leaderboard' }
                     ],
+                    [
+                        { text: 'Wallet', callback_data: 'call_m_wallet' }
+                    ],
                 ]
             }
         };
-        await this.bot.sendMessage(userId, 'Welcome to Snint Seiya Bot! \n\n 🌟 Main Menu 🌟', options);
+        await this.bot.sendMessage(userId, 'Welcome to Super Seiyan Bot! \n\n 🌟 Main Menu 🌟', options);
     }
 
 
@@ -775,6 +853,6 @@ export class TelegramService implements OnModuleInit {
 
     // this.bot.sendMessage(userId, 💡 'Please select an option:', options ❌ ✅ 📌 🏦 ℹ️ 📍  💳 ⛽️  🕐 🔗); 🎲 🏀 🌿 💬 🔔 📢 ✔️ ⭕ 🔱
     // ➰ ™️ ♻️ 💲 💱 〰️ 🔆 🔅 🌱 🌳 🌴 🌲🌼🌻🌺🌸🤸 🚴🧚🔥🚧
-    // ⌛⏰💎🔋⌨️🖨️💿📗📙📒🏷️📝🔒🛡️🔗⚙️🥇🏆 🥈🥉🧩🎯
-
+    // ⌛⏰💎🔋⌨️🖨️💿📗📙📒🏷️📝🔒🛡️⚙️🔗🥇🏆 🥈🥉🧩🎯🔙
+    // 💰 💸🚀👁️‍🗨️💯
 }

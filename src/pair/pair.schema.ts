@@ -43,8 +43,18 @@ export class Pair {
         pch_h24: string
     };
 
-    @Prop()
-    other_2: string;
+    @Prop({ type:{}})
+    other_2: {
+        base_token_price:string,
+        quote_token_price:string,
+        profit: string,
+        initial: string,
+        price: string,
+        liquidity: string,
+        cap: string,
+        p_ch_h1: string,
+        p_ch_h24: string
+    };
 
 }
 

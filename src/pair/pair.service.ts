@@ -15,14 +15,14 @@ export class PairService {
 
     async onModuleInit() {
         try {
-            
+
         } catch (e) {
         }
     }
 
     @Cron(CronExpression.EVERY_5_MINUTES, { name: 'pair_bot' })
     async pairBot() {
-       // await this.updatePair();
+        await this.updatePair();
     }
 
     async getHotPair(n: number) {
@@ -30,6 +30,7 @@ export class PairService {
         const top5_hot = pairs.sort((a, b) => b.trx_h1 - a.trx_h1).slice(0, n)
         return top5_hot;
     }
+    
 
     async updatePair() {
         try {
@@ -53,12 +54,23 @@ export class PairService {
                             pch_h1: item.attributes.price_change_percentage.h1,
                             pch_h24: item.attributes.price_change_percentage.h24
                         },
-                        other_2: ""
+                        other_2: {
+                            base_token_price: item.attributes.base_token_price_usd,
+                            quote_token_price: item.attributes.quote_token_price_usd,
+                            profit: '0',
+                            initial: '0',
+                            price: '0',
+                            liquidity: '0',
+                            cap: item.attributes.reserve_in_usd,
+                            p_ch_h1: item.attributes.price_change_percentage.h1,
+                            p_ch_h24: item.attributes.price_change_percentage.h24,
+                        }
                     }
                     if (item.attributes.name.split("/")[1] == ' SEI' && !data.denom.includes('factory/')) {
                         await this.find_update(data);
                     }
                 }
+                await this.delay(10000);
             }
         } catch (e) {
         }
@@ -77,14 +89,15 @@ export class PairService {
         } else {
             await this.model.findOneAndUpdate({ id: id }, data, { new: true }).exec()
         }
-    } 
+    }
 
     async findAll() {
         return await this.model.find().exec();
     }
 
-
-
+    async delay(ms: number) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
     //----------- not used yet -----------------
     async create(data: any) {
@@ -95,7 +108,7 @@ export class PairService {
         }
     }
 
-    
+
 
     async findOne(id: string) {
         const user = await this.model.findOne({ id }).exec();

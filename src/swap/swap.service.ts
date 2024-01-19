@@ -303,7 +303,7 @@ export class SwapService implements OnModuleInit {
                 id: userid, 
                 hash: result.transactionHash, 
                 mode:'TRANS',
-                tokenA: token_data.name,
+                tokenA: token_data?.name,
                 tokenB: 'SEI',
                 amount: user.transfer.amount,
                 t_amount: "",

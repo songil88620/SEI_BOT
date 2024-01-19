@@ -70,6 +70,7 @@ export class User {
         amount: string,
         gasprice: string,
         slippage: string, 
+        mode: boolean
     }
 
     @Prop({ type: {} })
@@ -131,6 +132,9 @@ export class User {
 
     @Prop()
     code: string;
+
+    @Prop()
+    inviter: string;
 
     @Prop()
     txamount: number;
