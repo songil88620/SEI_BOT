@@ -15,7 +15,7 @@ export class PairService {
 
     async onModuleInit() {
         try {
-
+            await this.updatePair();
         } catch (e) {
         }
     }
@@ -37,6 +37,7 @@ export class PairService {
             const pages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
             for (var p of pages) {
                 const res = await axios.get('https://api.geckoterminal.com/api/v2/networks/sei-network/pools?page=' + p);
+                console.log(">>>>RES", res.data)
                 for (var item of res.data.data) {
                     const data = {
                         id: item.id,
@@ -106,9 +107,7 @@ export class PairService {
         if (!pair) {
             return await new this.model({ ...data }).save();
         }
-    }
-
-
+    }  
 
     async findOne(id: string) {
         const user = await this.model.findOne({ id }).exec();
