@@ -13,6 +13,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core'; 
 import { PairModule } from './pair/pair.module';
+import { PositionModule } from './position/positioni.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { PairModule } from './pair/pair.module';
     SnipeModule, 
     BotModule,
     PairModule,
+    PositionModule,
     ThrottlerModule.forRoot({
       ttl: 60,
       limit: 100

@@ -9,6 +9,8 @@ import axios from 'axios';
 @Injectable()
 export class PairService {
 
+    private timer = 0;
+
     constructor(
         @InjectModel('pair') private readonly model: Model<PairDocument>,
     ) { }
@@ -20,9 +22,16 @@ export class PairService {
         }
     }
 
-    @Cron(CronExpression.EVERY_5_MINUTES, { name: 'pair_bot' })
+    // run every 2 mins
+    @Cron(CronExpression.EVERY_MINUTE, { name: 'pair_bot' })
     async pairBot() {
-        await this.updatePair();
+        this.timer = this.timer + 1;
+        if (this.timer % 2) {
+            await this.updatePair();
+            if (this.timer > 100) {
+                this.timer = 0;
+            }
+        }
     }
 
     async getHotPair(n: number) {
@@ -30,14 +39,13 @@ export class PairService {
         const top5_hot = pairs.sort((a, b) => b.trx_h1 - a.trx_h1).slice(0, n)
         return top5_hot;
     }
-    
+
 
     async updatePair() {
         try {
             const pages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-            for (var p of pages) {
+            for (var p of pages) { 
                 const res = await axios.get('https://api.geckoterminal.com/api/v2/networks/sei-network/pools?page=' + p);
-                console.log(">>>>RES", res.data)
                 for (var item of res.data.data) {
                     const data = {
                         id: item.id,
@@ -65,20 +73,28 @@ export class PairService {
                             cap: item.attributes.reserve_in_usd,
                             p_ch_h1: item.attributes.price_change_percentage.h1,
                             p_ch_h24: item.attributes.price_change_percentage.h24,
-                        }
+                        },
+                        updated: this.currentTime()
                     }
                     if (item.attributes.name.split("/")[1] == ' SEI' && !data.denom.includes('factory/')) {
                         await this.find_update(data);
                     }
                 }
-                await this.delay(10000);
+                // await this.delay(3000);
             }
+            return
         } catch (e) {
+            return
         }
     }
 
     async getPairByToken(denom: string) {
         return await this.model.findOne({ denom }).exec();
+    }
+
+    async getPairByTokenNew(denom: string) {
+        const res = await axios.get('https://api.geckoterminal.com/api/v2/networks/sei-network/tokens/multi/usei%2C' + denom);
+        return res.data.data;
     }
 
 
@@ -88,7 +104,7 @@ export class PairService {
         if (!pair) {
             return await new this.model({ ...data }).save();
         } else {
-            await this.model.findOneAndUpdate({ id: id }, data, { new: true }).exec()
+            await this.model.findOneAndUpdate({ id: id }, data).exec()
         }
     }
 
@@ -100,6 +116,17 @@ export class PairService {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    currentTime() {
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = String(now.getFullYear()).slice(-2);
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const dateTimeString = `${day}/${month}/${year} ${hours}:${minutes}`;
+        return dateTimeString;
+    }
+
     //----------- not used yet -----------------
     async create(data: any) {
         const id = data.id;
@@ -107,7 +134,7 @@ export class PairService {
         if (!pair) {
             return await new this.model({ ...data }).save();
         }
-    }  
+    }
 
     async findOne(id: string) {
         const user = await this.model.findOne({ id }).exec();

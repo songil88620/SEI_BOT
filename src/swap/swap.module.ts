@@ -5,6 +5,7 @@ import { TelegramModule } from 'src/telegram/telegram.module';
 import { LogModule } from 'src/log/log.module';
 import { BotModule } from 'src/bot/bot.module';
 import { PairModule } from 'src/pair/pair.module';
+import { PositionModule } from 'src/position/positioni.module';
 
 @Module({
   imports: [
@@ -12,7 +13,8 @@ import { PairModule } from 'src/pair/pair.module';
     forwardRef(() => UserModule),
     forwardRef(() => LogModule),
     forwardRef(() => BotModule),
-    forwardRef(() => PairModule)
+    forwardRef(() => PairModule),
+    forwardRef(() => PositionModule)
   ],
   providers: [SwapService],
   exports: [SwapService]

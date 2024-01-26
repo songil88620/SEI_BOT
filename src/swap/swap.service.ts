@@ -14,6 +14,10 @@ import { CHAIN_ID, REST_URL, RPC_URL } from 'src/abi/constants';
 import { BotService } from 'src/bot/bot.service';
 import { UserService } from 'src/user/user.service';
 import { TelegramService } from 'src/telegram/telegram.service';
+import { ACTIONS } from 'src/constant';
+import { PositionService } from 'src/position/position.service';
+import { UserType } from 'src/user/user.schema';
+import { PairType } from 'src/pair/pair.schema';
 
 @Injectable()
 export class SwapService implements OnModuleInit {
@@ -28,6 +32,7 @@ export class SwapService implements OnModuleInit {
         @Inject(forwardRef(() => LogService)) private logService: LogService,
         @Inject(forwardRef(() => LogService)) private botService: BotService,
         @Inject(forwardRef(() => PairService)) private pairService: PairService,
+        @Inject(forwardRef(() => PositionService)) private positionService: PositionService,
     ) { }
 
     async onModuleInit() {
@@ -43,17 +48,22 @@ export class SwapService implements OnModuleInit {
         await this.updateTokenList();
     }
 
+    getTokenData = (denom:string) => {
+        return this.tokenList.find((t)=>t.denom == denom); 
+    }
+
     updateTokenList = async () => {
         const all = await this.pairService.findAll();
         const sei = { name: "SEI", denom: "usei", decimal: 6 };
         this.tokenList = [sei, ...all]
     }   
 
-    buy_token = async(userid: string) => {
-        try{
-            const user = await this.userService.findOne(userid);
+    buy_token = async(user: UserType, mode:string) => { 
+        try{  
+            const userid = user.id;
             const swap = user.swap;  
-            const token_data = this.tokenList.find((t)=>t.denom == swap.token); 
+            const token_data = this.tokenList.find((t)=>t.denom == swap.token);    
+            
             const rpc = RPC_URL;
             const mnemonic = user.wallet.key; 
             const wallet = await restoreWallet(mnemonic);
@@ -65,13 +75,12 @@ export class SwapService implements OnModuleInit {
             );
             const amount = (Number(swap.amount) * 10**6).toString(); 
             const slippage = (Number(swap.slippage) / 100).toString();
-            const sei_balance = await this.getSeiBalance(userid);
+            const sei_balance = await this.getSeiBalance(user);
             if(sei_balance < Number(swap.amount)){
-                await this.telegramService.transactionResponse(userid, 'Low balance, charge you SEI balance', 301);
+                await this.telegramService.transactionResponse(user, 'Low balance, charge you SEI balance', 301);
                 return;
             }
-            const pairContract = token_data.pool;
-
+            const pairContract = token_data.pool;  
             const sQ = await signingCosmWasmClient.queryContractSmart(
                 pairContract,
                 {
@@ -86,9 +95,8 @@ export class SwapService implements OnModuleInit {
                         }
                     }
                 }
-            );
-            const return_amount = Number(sQ.return_amount) / 1000000 * Number(swap.amount);
-
+            );  
+            const return_amount = Number(sQ.return_amount) / 1000000 * Number(swap.amount); 
             const swapMsg = {
                 "swap": {
                     "max_spread":slippage,
@@ -102,6 +110,7 @@ export class SwapService implements OnModuleInit {
                     },
                 }
             }; 
+            
             const fee = calculateFee(1000000 * Number(swap.gasprice), "0.1usei");
             const result = await signingCosmWasmClient.execute(
                 walletAddress,
@@ -110,15 +119,33 @@ export class SwapService implements OnModuleInit {
                 fee,  
                 undefined,  
                 [{ denom: "usei", amount: amount }]
-            ); 
-            
+            );   
             const gasused = result.gasUsed;
             const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-            await this.telegramService.transactionResponse(userid, msg, 200);
+
+            if(mode == ACTIONS.CREATE_POSTION){  
+                const new_pos = {
+                    user_id: userid, 
+                    name: token_data.name,
+                    denom: swap.token,
+                    initial:{
+                        sei_amount: swap.amount,
+                        sei_price: token_data.other_2.quote_token_price,
+                        token_amount: return_amount.toFixed(4),
+                        token_price: token_data.other_2.base_token_price,
+                        pool: token_data.pool
+                    },
+                    updated: this.currentTime(),
+                    active: true
+                } 
+                await this.positionService.createNewOne(new_pos);  
+            }    
+
+            await this.telegramService.transactionResponse(user, msg, 200);
             const log = {
                 id: userid, 
                 hash: result.transactionHash, 
-                mode:'SWAP',
+                mode:mode,
                 tokenA:'SEI',
                 tokenB: token_data.name,
                 amount: swap.amount,
@@ -128,13 +155,13 @@ export class SwapService implements OnModuleInit {
             }
             this.logService.create(log)
         }catch(e){
-            await this.telegramService.transactionResponse(userid, e.message, 400);
+            await this.telegramService.transactionResponse(user, e.message, 400);
         }   
     }  
 
-    sell_token = async (userid: string) => {
+    sell_token = async (user: UserType) => {  
         try{
-            const user = await this.userService.findOne(userid);
+            const userid = user.id; 
             const swap = user.swap;  
             const token_data = this.tokenList.find((t)=>t.denom == swap.token); 
             const rpc = RPC_URL;
@@ -195,7 +222,7 @@ export class SwapService implements OnModuleInit {
                 ); 
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-                await this.telegramService.transactionResponse(userid, msg, 200); 
+                await this.telegramService.transactionResponse(user, msg, 200); 
                 const log = {
                     id: userid, 
                     hash: result.transactionHash, 
@@ -231,7 +258,7 @@ export class SwapService implements OnModuleInit {
                 );
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-                await this.telegramService.transactionResponse(userid, msg, 200); 
+                await this.telegramService.transactionResponse(user, msg, 200); 
                 const log = {
                     id: userid, 
                     hash: result.transactionHash, 
@@ -246,14 +273,14 @@ export class SwapService implements OnModuleInit {
                 this.logService.create(log)
             }   
         }catch(e){ 
-            await this.telegramService.transactionResponse(userid, e.message, 400);
+            await this.telegramService.transactionResponse(user, e.message, 400);
         }   
     }
 
 
-    async transfer_token(userid: string) {
-        try {
-            const user = await this.userService.findOne(userid);
+    async transfer_token(user: UserType) { 
+        try { 
+            const userid = user.id
             const mnemonic = user.wallet.key;
             const wallet = await restoreWallet(mnemonic);
             const [firstAccount] = await wallet.getAccounts();
@@ -263,7 +290,7 @@ export class SwapService implements OnModuleInit {
 
             if (Number(a_m) <= 0 || recipient == "") {
                 const msg = "You didn't set amount or recipient address, please check again.";
-                await this.telegramService.transactionResponse(userid, msg, 300);
+                await this.telegramService.transactionResponse(user, msg, 300);
                 return
             }
 
@@ -298,7 +325,7 @@ export class SwapService implements OnModuleInit {
             }
             const gasused = result.gasUsed;
             const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-            await this.telegramService.transactionResponse(userid, msg, 200);
+            await this.telegramService.transactionResponse(user, msg, 200);
             const log = {
                 id: userid, 
                 hash: result.transactionHash, 
@@ -312,14 +339,14 @@ export class SwapService implements OnModuleInit {
             }
             this.logService.create(log) 
         } catch (e) {
-            await this.telegramService.transactionResponse(userid, e.message, 400);
+            await this.telegramService.transactionResponse(user, e.message, 400);
             console.log(">>err", e)
         }
     }
 
-    getSeiBalance = async (userid:string) => {
-        try{
-            const user = await this.userService.findOne(userid);
+    getSeiBalance = async (user:UserType) => {
+        try{ 
+            const userid = user.id
             const w = user.wallet;
             if (w.key != "") {
                 var sei_balance = 0;

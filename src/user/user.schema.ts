@@ -1,23 +1,112 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
 
-export type UserDocument = User & Document;
 
-interface Sniper {
-    network: string,
-    contract: string,
-    autobuy: boolean,
-    buyamount: string,
-    gasprice: string,
-    slippage: string,
-    smartslip: boolean
+
+export interface UserType {
+    id: string,
+    username: string,
+    wallet: {
+        address: string,
+        key: string
+    },
+    swap: {
+        token: string,
+        amount: string,
+        gasprice: string,
+        slippage: string,
+        mode: boolean
+    },
+    sniper: {
+        network: string,
+        contract: string,
+        autobuy: boolean,
+        buyamount: string,
+        gasprice: string,
+        slippage: string,
+        wallet: number,
+        result: string,
+        multi: boolean,
+        blockwait: number,
+        startprice: number,
+        sellrate: number,
+        autosell: boolean,
+        sold: boolean,
+        private: boolean,
+        mtype: boolean,
+        method: string,
+        token: {
+            name: string,
+            symbol: string,
+            decimal: string,
+            supply: string,
+            owner: string,
+            lppair: string,
+            honeypot: number,
+            buytax: number,
+            selltax: number,
+            transferfee: number,
+            maxwallet: string,
+            maxwp: number,
+            methods: any[]
+        }
+    },
+    transfer: {
+        token: string,
+        amount: string,
+        to: string,
+    },
+    perps: {
+        pairidx: number,
+        leverage: number,
+        slippage: number,
+        stoploss: number,
+        profit: number,
+        autotrade: boolean,
+        longshort: boolean,
+        size: number,
+        wallet: number
+    },
+    limits: {
+        token: string,
+        amount: string,
+        price: string,
+        wallet: number,
+        result: boolean,
+        except: boolean,
+        gasprice: string,
+        slippage: string,
+        private: boolean
+    }[],
+    mirror: {
+        address: string,
+        amount: string,
+        gasprice: string,
+        slippage: string,
+        private: boolean
+    }[],
+    wmode: boolean,
+    detail: string,
+    other: {
+        mirror: number,
+        limit: number
+    },
+    referral: string[],
+    code: string,
+    inviter: string,
+    txamount: number,
+    tmp: string,
+    current_panel: string
 }
+
+
+export type UserDocument = User & Document;
 
 @Schema()
 export class User {
 
     @Prop()
-    id: string;  
+    id: string;
 
     @Prop()
     username: string;
@@ -35,11 +124,11 @@ export class User {
         autobuy: boolean,
         buyamount: string,
         gasprice: string,
-        slippage: string, 
+        slippage: string,
         wallet: number,
         result: string,
         multi: boolean,
-        blockwait: number, 
+        blockwait: number,
         startprice: number,
         sellrate: number,
         autosell: boolean,
@@ -69,15 +158,15 @@ export class User {
         token: string,
         amount: string,
         gasprice: string,
-        slippage: string, 
+        slippage: string,
         mode: boolean
     }
 
     @Prop({ type: {} })
     transfer: {
         token: string,
-        amount: string, 
-        to: string, 
+        amount: string,
+        to: string,
     }
 
     @Prop({ type: {} })
@@ -141,6 +230,9 @@ export class User {
 
     @Prop()
     tmp: string;
+
+    @Prop()
+    current_panel: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
