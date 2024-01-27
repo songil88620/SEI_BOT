@@ -1,9 +1,10 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { PositionDocument } from './position.schema';
+import { PositionDocument, PositionType } from './position.schema';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import axios from 'axios';
+import { skip, take } from 'rxjs';
 
 
 @Injectable()
@@ -32,10 +33,33 @@ export class PositionService {
         return await this.model.find({ user_id: userid, active: true });
     }
 
+    async getMyPositionOne(userid: string, idx: number) {
+        const all = await this.model.find({ user_id: userid, active: true });
+        const len = all.length;
+        const page = Math.abs(idx % len);
+        if (len > 0) {
+            for (var i = 0; i < len; i++) {
+                if (i == page) {
+                    return { position: all[i], len: len }
+                }
+            }
+        } else {
+            return { position: null, len: 0 };
+        }
+    }
+
+    async updatePositionOne(id: string, pos: PositionType) {
+        await this.model.findByIdAndUpdate(id, pos)
+    }
+
+    async deletePositionOne(id: string) {
+        await this.model.findByIdAndRemove(id)
+    }
+
     // --------- not used yet
 
 
-    
+
 
     async find_update(data: any) {
         const id = data.id;
@@ -57,15 +81,6 @@ export class PositionService {
 
     //----------- not used yet -----------------
 
-
-    async findOne(id: string) {
-        const user = await this.model.findOne({ id }).exec();
-        return user
-    }
-
-    async update(id: string, data) {
-        return await this.model.findOneAndUpdate({ id: id }, data, { new: true }).exec()
-    }
 
 
 

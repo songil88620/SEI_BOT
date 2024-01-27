@@ -95,7 +95,7 @@ export interface UserType {
     code: string,
     inviter: string,
     txamount: number,
-    tmp: string,
+    current_page: number,
     current_panel: string
 }
 
@@ -229,7 +229,7 @@ export class User {
     txamount: number;
 
     @Prop()
-    tmp: string;
+    current_page: number;
 
     @Prop()
     current_panel: string;

@@ -4,8 +4,10 @@ export const wethAddress = "";
 export const adminAddress = "";
 export const customProvider = ""
 
-export const REST_URL = 'https://rpc.ankr.com/premium-http/sei_cosmos/d4d407f01b5802e48cec063e8e63e752db187a691ef40458a890ee958c799ce6';
-export const RPC_URL = 'https://rpc.ankr.com/sei/d4d407f01b5802e48cec063e8e63e752db187a691ef40458a890ee958c799ce6';
+export const REST_URL = 'https://sei-api.polkachu.com/';
+export const RPC_URL = 'https://sei-rpc.polkachu.com/';
+// export const REST_URL = 'https://rpc.ankr.com/premium-http/sei_cosmos/d4d407f01b5802e48cec063e8e63e752db187a691ef40458a890ee958c799ce6';
+// export const RPC_URL = 'https://rpc.ankr.com/sei/d4d407f01b5802e48cec063e8e63e752db187a691ef40458a890ee958c799ce6';
 export const CHAIN_ID = 'pacific-1';
 
 export const myName = "https://t.me/SSeiyan_Bot";

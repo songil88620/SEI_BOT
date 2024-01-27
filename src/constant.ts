@@ -7,5 +7,16 @@ export const MONGO_ROOT = 'mongodb+srv://songil:YHONhFTJXhCI1Jic@cluster0.bnlf1s
 export const ACTIONS = {
     SWAP: 'SWAP',
     CREATE_POSTION: 'CREATE_POSITION',
-    TRANSFER: 'TRANSFER'
+    TRANSFER: 'TRANSFER',
+    POSITION_SELL: 'POSITION_SELL'
+}
+
+export const PANELS = {
+    P_WALLET: 'wallet_panel',
+    P_SWAP: 'swap_panel',
+    P_TRANSFER: 'transfer_panel',
+    P_POSITION_LIST: 'position_list_panel',
+    P_POSITION_CREATE: 'position_create_panel',
+    P_POSITION_MANAGE: 'position_manage_panel',
+
 }

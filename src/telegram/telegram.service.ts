@@ -1,6 +1,6 @@
 import { Inject, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Injectable, Logger } from '@nestjs/common';
-import { ACTIONS, TG_TOKEN } from 'src/constant';
+import { ACTIONS, PANELS, TG_TOKEN } from 'src/constant';
 import { UserService } from 'src/user/user.service';
 import { CHAIN_ID, REST_URL, RPC_URL, myName, wethAddress } from 'src/abi/constants';
 import { SwapService } from 'src/swap/swap.service';
@@ -39,7 +39,7 @@ export class TelegramService implements OnModuleInit {
     private readonly bot: any
     private logger = new Logger(TelegramService.name)
     private user: string[] = []
-
+    private uc_tmp = {}
     private lastMsg: number = 0;
 
     private hotListForSwap = [];
@@ -61,11 +61,17 @@ export class TelegramService implements OnModuleInit {
 
     onModuleInit = async () => {
         await this.updateListForSwap();
+        return;
     }
 
     @Cron(CronExpression.EVERY_MINUTE, { name: 'list_bot' })
     async listBot() {
         await this.updateListForSwap();
+        return;
+    }
+
+    getUserTmp = (userId: string) => {
+        return this.uc_tmp[userId];
     }
 
     updateListForSwap = async () => {
@@ -74,6 +80,7 @@ export class TelegramService implements OnModuleInit {
         const sei = { name: "SEI", denom: "usei", decimal: 6 };
         this.hotListForSwap = [sei, ...hot];
         this.allListForSwap = [sei, ...all]
+        return;
     }
 
     cleanrMessage = async (chatid: string, msgid: number) => {
@@ -89,7 +96,7 @@ export class TelegramService implements OnModuleInit {
             const id: string = query.message.chat.id;
             const msgid = query.message.message_id;
             const cmd = query.data;
-            const user: UserType = await this.userService.findOne(id)
+            var user: UserType = await this.userService.findOne(id)
             const current_panel = user.current_panel;
 
             // main menu commands
@@ -240,7 +247,7 @@ export class TelegramService implements OnModuleInit {
                     swap.token = token_address;
                     await this.userService.update(id, { swap: swap });
                     await this.bot.sendMessage(id, "<b>Contract is set successfully.</b> \n", { parse_mode: "HTML" });
-                    if (current_panel == 'swap') {
+                    if (current_panel == PANELS.P_SWAP) {
                         await this.panel_buysell(user);
                     } else {
                         await this.panel_create_position(user)
@@ -264,17 +271,17 @@ export class TelegramService implements OnModuleInit {
                 }
                 if (cmd == 'buysell_buy') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
-                    if (current_panel == 'swap') {
+                    if (current_panel == PANELS.P_SWAP) {
                         await this.swapService.buy_token(user, ACTIONS.SWAP)
                         await this.panel_buysell(user)
                     } else {
                         await this.swapService.buy_token(user, ACTIONS.CREATE_POSTION)
-                        await this.panel_create_position(user)
+                        await this.panel_postion_list(user)
                     }
                 }
                 if (cmd == 'buysell_sell') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
-                    await this.swapService.sell_token(user)
+                    await this.swapService.sell_token(user, ACTIONS.SWAP, '0')
                     await this.panel_buysell(user)
                 }
             }
@@ -318,14 +325,60 @@ export class TelegramService implements OnModuleInit {
 
             // position list function
             if (cmd.includes('position_list_')) {
+                await this.bot.sendMessage(id, "<b>⏳ Processing requested, Waiting for data…</b>", { parse_mode: "HTML" });
                 if (cmd == 'position_list_sell') {
-
+                    await this.panel_manage_position(user);
                 }
                 if (cmd == 'position_list_create') {
                     await this.panel_create_position(user);
                 }
                 if (cmd == 'position_list_refresh') {
+                    await this.panel_postion_list(user);
+                }
+            }
 
+            // position manage function
+            if (cmd.includes('pos_mng_')) {
+                const options = {
+                    reply_markup: {
+                        force_reply: true
+                    },
+                    parse_mode: "HTML"
+                };
+                if (cmd == 'pos_mng_prev') {
+                    user.current_page = user.current_page - 1;
+                    await this.panel_manage_position(user);
+                    await this.userService.update(id, { current_page: user.current_page });
+                }
+                if (cmd == 'pos_mng_null') {
+                    return;
+                }
+                if (cmd == 'pos_mng_next') {
+                    user.current_page = user.current_page + 1;
+                    await this.userService.update(id, { current_page: user.current_page });
+                    await this.panel_manage_position(user);
+                }
+                if (cmd == 'pos_mng_sellall') {
+                    await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
+                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '100%');
+
+                }
+                if (cmd == 'pos_mng_sellhal') {
+                    await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
+                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '50%');
+
+                }
+                if (cmd == 'pos_mng_sellxxx') {
+                    await this.bot.sendMessage(id, "<b>Please input sell amount</b>", { parse_mode: "HTML" });
+                    await this.bot.sendMessage(id, "<b>Sell X(position)</b>", options);
+                }
+                if (cmd == 'pos_mng_refresh') {
+                    await this.panel_manage_position(user);
+                }
+                if (cmd == 'pos_mng_remove') {
+                    const pid = this.uc_tmp[id]['_id'];
+                    await this.positionService.deletePositionOne(pid);
+                    await this.panel_postion_list(user);
                 }
             }
 
@@ -336,7 +389,9 @@ export class TelegramService implements OnModuleInit {
             // to back menu
             if (cmd == "to_start") {
 
-                if (current_panel == 'position_create') {
+                if (current_panel == PANELS.P_POSITION_CREATE) {
+                    await this.panel_postion_list(user)
+                } else if (current_panel == PANELS.P_POSITION_MANAGE) {
                     await this.panel_postion_list(user)
                 } else {
                     await this.sendStartSelectOption(user)
@@ -344,9 +399,10 @@ export class TelegramService implements OnModuleInit {
             }
 
             await this.cleanrMessage(id, msgid)
-
+            return;
         } catch (error) {
             console.log(">>>Error")
+            return;
         }
     }
 
@@ -479,13 +535,15 @@ export class TelegramService implements OnModuleInit {
                     wmode: true,
                     txamount: 0,
                     referral: [],
+                    inviter: "",
                     code: uid(),
                     detail: "",
                     other: {
                         mirror: 0,
                         limit: 0
                     },
-                    current_panel: 'wallet'
+                    current_panel: PANELS.P_WALLET,
+                    current_page: 0
                 }
                 await this.userService.create(new_user);
             }
@@ -538,7 +596,7 @@ export class TelegramService implements OnModuleInit {
                     swap.token = message;
                     await this.userService.update(userid, { swap });
                     await this.bot.sendMessage(userid, "<b>Contract is set successfully.</b> \n", { parse_mode: "HTML" });
-                    if (current_panel == 'swap') {
+                    if (current_panel == PANELS.P_SWAP) {
                         await this.panel_buysell(user);
                     } else {
                         await this.panel_create_position(user)
@@ -562,7 +620,7 @@ export class TelegramService implements OnModuleInit {
                     swap.amount = message;
                     await this.userService.update(userid, { swap });
                     await this.bot.sendMessage(userid, "<b>Amount is set successfully.</b> \n", { parse_mode: "HTML" });
-                    if (current_panel == 'swap') {
+                    if (current_panel == PANELS.P_SWAP) {
                         await this.panel_buysell(user);
                     } else {
                         await this.panel_create_position(user)
@@ -586,7 +644,7 @@ export class TelegramService implements OnModuleInit {
                     swap.gasprice = message;
                     await this.userService.update(userid, { swap });
                     await this.bot.sendMessage(userid, "<b>Gas Price is set successfully.</b> \n", { parse_mode: "HTML" });
-                    if (current_panel == 'swap') {
+                    if (current_panel == PANELS.P_SWAP) {
                         await this.panel_buysell(user);
                     } else {
                         await this.panel_create_position(user)
@@ -610,7 +668,7 @@ export class TelegramService implements OnModuleInit {
                     swap.slippage = message;
                     await this.userService.update(userid, { swap });
                     await this.bot.sendMessage(userid, "<b>Slippage is set successfully.</b> \n", { parse_mode: "HTML" });
-                    if (current_panel == 'swap') {
+                    if (current_panel == PANELS.P_SWAP) {
                         await this.panel_buysell(user);
                     } else {
                         await this.panel_create_position(user)
@@ -694,13 +752,160 @@ export class TelegramService implements OnModuleInit {
 
             // ------------------------------------------- 
 
-
+            // position sell 
+            if (reply_msg == 'Sell X(position)') {
+                const my_postion: PositionType = this.uc_tmp[userid];
+                var bs = Number(my_postion.initial.token_amount);
+                my_postion.sell.forEach((ps) => {
+                    bs = bs - Number(ps)
+                })
+                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                if (Number(message) > Number(bs)) {
+                    await this.bot.sendMessage(userid, "<b>Balance over, input correct amount</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Sell X(position)</b>", options);
+                } else if (!decimalRegex.test(message)) {
+                    await this.bot.sendMessage(userid, "<b>Invalid amount input, only decimal can be acceptable.</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Sell X(position)</b>", options);
+                } else {
+                    await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
+                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, message);
+                }
+            }
 
             await this.cleanrMessage(id, msgid)
-
+            return;
         } catch (e) {
             console.log(">>e", e)
+            return;
         }
+
+    }
+
+    panel_manage_position = async (user: UserType) => {
+        const userId = user.id
+        const page = user.current_page;
+        const p: { position: PositionType, len: number } = await this.positionService.getMyPositionOne(userId, page)
+        const position: PositionType = p.position;
+        this.uc_tmp[userId] = position;
+        const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
+        const used_m = Number(position.initial.sei_amount) * Number(position.initial.sei_price);
+        const curt_m = Number(position.initial.token_amount) * Number(recent_token_data.other_2.base_token_price);
+        const profit_m = curt_m - used_m;
+        const profit_m_vs_sei = (profit_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+        const profit_m_percent = ((profit_m / used_m) * 100).toFixed(2);
+        const initial_sei = Number(position.initial.sei_amount).toFixed(5);
+        const a_token_vs_sei = (Number(recent_token_data.other_2.base_token_price) / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+        var bs = Number(position.initial.token_amount);
+        position.sell.forEach((ps) => {
+            bs = bs - Number(ps)
+        })
+        const balance_token = Number(bs).toFixed(5) + " $" + position.name + "/" + (curt_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5) + ' SEI/ $' + (curt_m).toFixed(5);
+        const mcap = (Number(recent_token_data.other_2.cap) * Number(recent_token_data.other_2.base_token_price)).toFixed(5) + "/ $" + recent_token_data.other_2.base_token_price;
+
+        var pos_msg =
+            "<b>" + position.name + "</b>\n" +
+            "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+            "Initial: <b>" + initial_sei + " SEI</b>\n" +
+            "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
+            "Balance: <b>" + balance_token + "</b>\n" +
+            "Market Cap: <b>$" + mcap + "</b>\n\n";
+        await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
+
+        var inline_key = [];
+        inline_key.push([
+            { text: '◀️ Prev', callback_data: 'pos_mng_prev' },
+            { text: position.name, callback_data: 'pos_mng_null' },
+            { text: 'Next ▶️', callback_data: 'pos_mng_next' },
+        ]);
+        inline_key.push([
+            { text: 'Sell 100%', callback_data: 'pos_mng_sellall' },
+            { text: 'Sell 50%', callback_data: 'pos_mng_sellhal' },
+        ]);
+        inline_key.push([{ text: 'Sell X', callback_data: 'pos_mng_sellxxx' }]);
+        inline_key.push([
+            { text: '🔎 Seiscan', url: 'https://www.seiscan.app/pacific-1/contracts/' + position.denom },
+            { text: '📊 Chart', url: 'https://coinhall.org/sei/' + position.initial.pool }
+        ]);
+        inline_key.push([
+            { text: '🔄 Refresh', callback_data: 'pos_mng_refresh' },
+            { text: '🗑️ Remove', callback_data: 'pos_mng_remove' },
+        ]);
+        inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
+
+
+        const options = {
+            reply_markup: {
+                inline_keyboard: inline_key
+            }
+        };
+        await this.bot.sendMessage(userId, 'Setting for position management', options);
+        await this.userService.update(userId, { current_panel: PANELS.P_POSITION_MANAGE });
+        return;
+    }
+
+    panel_postion_list = async (user: UserType) => {
+        const userId = user.id;
+        const postions: PositionType[] = await this.positionService.getMyPositions(userId)
+        var idx = 0;
+        var pos_msg = "<b>Position Overview:</b>\n\n";
+        for (var position of postions) {
+            idx++;
+            const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
+            const used_m = Number(position.initial.sei_amount) * Number(position.initial.sei_price);
+            const curt_m = Number(position.initial.token_amount) * Number(recent_token_data.other_2.base_token_price);
+            const profit_m = curt_m - used_m;
+            const profit_m_vs_sei = (profit_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+            const profit_m_percent = ((profit_m / used_m) * 100).toFixed(2);
+            const initial_sei = Number(position.initial.sei_amount).toFixed(5);
+            const a_token_vs_sei = (Number(recent_token_data.other_2.base_token_price) / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+            var bs = Number(position.initial.token_amount);
+            position.sell.forEach((ps) => {
+                bs = bs - Number(ps)
+            })
+            const balance_token = Number(bs).toFixed(5) + " $" + position.name + "/" + (curt_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5) + ' SEI/ $' + (curt_m).toFixed(5);
+            const mcap = (Number(recent_token_data.other_2.cap) * Number(recent_token_data.other_2.base_token_price)).toFixed(5) + "/ $" + recent_token_data.other_2.base_token_price;
+
+            pos_msg = pos_msg +
+                "<b>" + idx + ". " + position.name + "</b>\n" +
+                "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+                "Initial: <b>" + initial_sei + " SEI</b>\n" +
+                "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
+                "Balance: <b>" + balance_token + "</b>\n" +
+                "Market Cap: <b>$" + mcap + "</b>\n\n";
+        }
+
+        var sei_balance = await this.swapService.getSeiBalance(user);
+        pos_msg = pos_msg + "\n" +
+            "Wallet Balance: <b>" + sei_balance + " SEI</b>";
+
+        await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
+
+        var inline_key = [];
+        inline_key.push([{ text: '📈 Sell & Manage ', callback_data: 'position_list_sell' }]);
+        inline_key.push([{ text: '🆕 Create Manage', callback_data: 'position_list_create' }]);
+        inline_key.push([{ text: '🔄 Refresh', callback_data: 'position_list_refresh' }]);
+        inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
+
+        const options = {
+            reply_markup: {
+                inline_keyboard: inline_key
+            }
+        };
+        await this.bot.sendMessage(userId, 'My position management', options);
+        await this.userService.update(userId, { current_panel: PANELS.P_POSITION_LIST });
+        return;
     }
 
     panel_create_position = async (user: UserType) => {
@@ -766,63 +971,17 @@ export class TelegramService implements OnModuleInit {
         ]);
         inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
 
-
         const options = {
             reply_markup: {
                 inline_keyboard: inline_key
             }
         };
         await this.bot.sendMessage(userId, 'Setting for new position creating', options);
-        await this.userService.update(userId, { current_panel: 'position_create' });
+        await this.userService.update(userId, { current_panel: PANELS.P_POSITION_CREATE });
+        return;
     }
 
-    panel_postion_list = async (user: UserType) => {
-        const userId = user.id;
-        const postions: PositionType[] = await this.positionService.getMyPositions(userId) 
-        var idx = 0;
-        var pos_msg = "<b>Position Overview:</b>\n\n";
-        for (var position of postions) {
-            idx++;
-            const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
-            const used_m = Number(position.initial.sei_amount) * Number(position.initial.sei_price);
-            const curt_m = Number(position.initial.token_amount) * Number(recent_token_data.other_2.base_token_price);
-            const profit_m = curt_m - used_m;
-            const profit_m_vs_sei = (profit_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
-            const profit_m_percent = ((profit_m / used_m) * 100).toFixed(2);
-            const initial_sei = Number(position.initial.sei_amount).toFixed(5);
-            const a_token_vs_sei = (Number(recent_token_data.other_2.base_token_price) / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
-            const balance_token = Number(position.initial.token_amount).toFixed(5) + " $" + position.name + "/" + (curt_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5) + ' SEI/ $' + (curt_m).toFixed(5);
-            const mcap = (Number(recent_token_data.other_2.cap) * Number(recent_token_data.other_2.base_token_price)).toFixed(5) + "/ $" + recent_token_data.other_2.base_token_price;
 
-            pos_msg = pos_msg +
-                "<b>" + idx + ". " + position.name + "</b>\n" +
-                "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
-                "Initial: <b>" + initial_sei + " SEI</b>\n" +
-                "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
-                "Balance: <b>" + balance_token + "</b>\n" +
-                "Market Cap: <b>$" + mcap + "</b>\n\n";
-        }
-
-        var sei_balance = await this.swapService.getSeiBalance(user); 
-        pos_msg = pos_msg + "\n" +
-            "Wallet Balance: <b>" + sei_balance + " SEI</b>";
-
-        await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
-
-        var inline_key = [];
-        inline_key.push([{ text: '📈 Sell & Manage ', callback_data: 'position_list_sell' }]);
-        inline_key.push([{ text: '🆕 Create Manage', callback_data: 'position_list_create' }]);
-        inline_key.push([{ text: '🔄 Refresh', callback_data: 'position_list_refresh' }]);
-        inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
-
-        const options = {
-            reply_markup: {
-                inline_keyboard: inline_key
-            }
-        };
-        await this.bot.sendMessage(userId, 'My position management', options);
-        await this.userService.update(userId, { current_panel: 'position_list' });
-    }
 
     // wallet panel sei1m77nfvyngetsn54rk968t6f0qr059t67jdlvcv
     panel_wallets = async (user: UserType) => {
@@ -858,8 +1017,8 @@ export class TelegramService implements OnModuleInit {
             };
             this.bot.sendMessage(userId, 'Generate new wallet or import one', options);
         }
-        await this.userService.update(userId, { current_panel: 'wallet' });
-
+        await this.userService.update(userId, { current_panel: PANELS.P_WALLET });
+        return;
     }
 
     panel_buysell = async (user: UserType) => {
@@ -932,7 +1091,8 @@ export class TelegramService implements OnModuleInit {
             }
         };
         await this.bot.sendMessage(userId, mode ? 'Setting for Buy token with SEI' : 'Setting for Sell token for SEI', options);
-        await this.userService.update(userId, { current_panel: 'swap' });
+        await this.userService.update(userId, { current_panel: PANELS.P_SWAP });
+        return;
     }
 
     panel_transfer = async (user: UserType) => {
@@ -973,7 +1133,8 @@ export class TelegramService implements OnModuleInit {
             }
         };
         await this.bot.sendMessage(userId, 'Setting for token transfer', options);
-        await this.userService.update(userId, { current_panel: 'transfer' });
+        await this.userService.update(userId, { current_panel: PANELS.P_SWAP });
+        return;
     }
 
 
@@ -1014,6 +1175,7 @@ export class TelegramService implements OnModuleInit {
             "Tap Referral to start invite your friend to trade, you can earn up to 30% referral volume fees from our program! *Leaderboard coming soon*\n\n" +
             "SUPER SEIYAN MODE ON 🟢\n";
         await this.bot.sendMessage(userId, welcome_msg, options);
+        return;
     }
 
 
@@ -1036,15 +1198,16 @@ export class TelegramService implements OnModuleInit {
             await this.bot.sendMessage(userId, "<b>" + msg + "</b> \n\n", options);
         }
 
-        if (current_panel == ACTIONS.SWAP) {
+        if (current_panel == PANELS.P_SWAP) {
             await this.panel_buysell(user)
-        } else if (current_panel == ACTIONS.TRANSFER) {
+        } else if (current_panel == PANELS.P_TRANSFER) {
             await this.panel_transfer(user)
-        } else if (current_panel == ACTIONS.CREATE_POSTION) {
+        } else if (current_panel == PANELS.P_POSITION_CREATE) {
             await this.panel_create_position(user)
         } else {
 
         }
+        return;
         // await this.sendStartSelectOption(userId)
     }
 
@@ -1056,6 +1219,6 @@ export class TelegramService implements OnModuleInit {
 
     // this.bot.sendMessage(userId, 💡 'Please select an option:', options ❌ ✅ 📌 🏦 ℹ️ 📍  💳 ⛽️  🕐 🔗); 🎲 🏀 🌿 💬 🔔 📢 ✔️ ⭕ 🔱
     // ➰ ™️ ♻️ 💲 💱 〰️ 🔆 🔅 🌱 🌳 🌴 🌲🌼🌻🌺🌸🤸 🚴🧚🔥🚧
-    // ⌛⏰💎🔋⌨️🖨️💿📗📙📒🏷️📝🔒🛡️⚙️🔗🥇🏆 🥈🥉🧩🎯🔙
-    // 💰 💸🚀👁️‍🗨️💯
+    // ⌛⏰💎🔋⌨️🖨️💿📗📙📒📕🏷️📝🔒🛡️⚙️🔗🥇🏆 🥈🥉🧩🎯🔙
+    // 💰 💸🚀👁️‍🗨️💯📈🆕🔄🧺🗑️📊🔎💊🔴🔵🟢🟡🟠✈️🔑🔐🧷
 }

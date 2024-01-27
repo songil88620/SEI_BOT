@@ -18,6 +18,7 @@ import { ACTIONS } from 'src/constant';
 import { PositionService } from 'src/position/position.service';
 import { UserType } from 'src/user/user.schema';
 import { PairType } from 'src/pair/pair.schema';
+import { PositionType } from 'src/position/position.schema';
 
 @Injectable()
 export class SwapService implements OnModuleInit {
@@ -159,7 +160,7 @@ export class SwapService implements OnModuleInit {
         }   
     }  
 
-    sell_token = async (user: UserType) => {  
+    sell_token = async (user: UserType, mode:string, c_amount:string) => {  
         try{
             const userid = user.id; 
             const swap = user.swap;  
@@ -173,10 +174,28 @@ export class SwapService implements OnModuleInit {
                 rpc,
                 wallet,
             );
-            const amount = (Number(swap.amount) * 10**6).toString();  
+            var amount = (Number(swap.amount) * 10**6).toString();   
             const slippage = (Number(swap.slippage) / 100).toString();
-            const pairContract = token_data.pool;
-            const tokenContract = token_data.denom; 
+            var pairContract = token_data.pool;
+            var tokenContract = token_data.denom; 
+
+            if(mode == ACTIONS.POSITION_SELL){
+                const my_postion:PositionType = this.telegramService.getUserTmp(userid); 
+                var remain_amount = Number(my_postion.initial.token_amount); 
+                my_postion.sell.forEach((ps) => {
+                    remain_amount = remain_amount - Number(ps)
+                })  
+                if(c_amount == '100%'){
+                    amount = (Number(remain_amount) * 10**6).toString();   
+                }else if(c_amount == '50%'){
+                    amount = (Number(remain_amount) * 10**6 /2).toString();   
+                }else{
+                    amount = (Number(c_amount) * 10**6).toString();       
+                } 
+                pairContract = my_postion.initial.pool;
+                tokenContract = my_postion.denom;
+            }    
+
             const fee = calculateFee(1000000 * Number(swap.gasprice), "0.1usei");
 
             const sQ = await signingCosmWasmClient.queryContractSmart(
@@ -193,32 +212,33 @@ export class SwapService implements OnModuleInit {
                         }
                     }
                 }
-            );
+            );  
+
             const return_amount = Number(sQ.return_amount) / 1000000;
-            const return_sei = (1 / return_amount * Number(swap.amount)).toFixed(4); 
+            const return_sei = (1 / return_amount * (Number(amount) / (10 ** 6))).toFixed(4); 
             const beliefPrice = (1 / sQ.return_amount) * 1000000; 
 
             if( tokenContract.includes('ibc/')){   
                 const swapMsg = {
                     "swap": {
-                      "max_spread": slippage,  
-                      "offer_asset": {
+                    "max_spread": slippage,  
+                    "offer_asset": {
                         "amount": amount,
                         "info": {
-                          "native_token": {
+                        "native_token": {
                             "denom": tokenContract
-                          }
                         }
-                      }
+                        }
+                    }
                     }
                 }
                 const result = await signingCosmWasmClient.execute(
                     walletAddress,
                     pairContract,
                     swapMsg,
-                    fee,  
-                    undefined,  
-                    [{ denom: tokenContract, amount: amount }]  
+                    fee,
+                    undefined,
+                    [{ denom: tokenContract, amount: amount }]
                 ); 
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
@@ -226,7 +246,7 @@ export class SwapService implements OnModuleInit {
                 const log = {
                     id: userid, 
                     hash: result.transactionHash, 
-                    mode:'SWAP',
+                    mode: mode,
                     tokenA: token_data.name,
                     tokenB: 'SEI',
                     amount: return_sei,
@@ -235,6 +255,30 @@ export class SwapService implements OnModuleInit {
                     other: msg
                 }
                 this.logService.create(log)
+                if(mode == ACTIONS.POSITION_SELL){
+                    var my_postion:PositionType = this.telegramService.getUserTmp(userid);                     
+                    var remain_amount = Number(my_postion.initial.token_amount); 
+                    my_postion.sell.forEach((ps) => {
+                        remain_amount = remain_amount - Number(ps)
+                    })                    
+                    if(c_amount == '100%'){
+                        remain_amount = 0;
+                    }else if(c_amount == '50%'){
+                        remain_amount = remain_amount / 2;
+                    }else{
+                        remain_amount = remain_amount - Number(c_amount);
+                    }  
+                    const new_active = remain_amount > 0? true:false; 
+                    const _id = my_postion['_id'].toString(); 
+                    my_postion.active = new_active;
+                    my_postion.updated = this.currentTime(); 
+                    var sell_history = my_postion.sell;
+                    const cm = (Number(amount) / (10**6)).toFixed(4)
+                    sell_history.push(cm.toString());
+                    my_postion.sell = sell_history;
+                    await this.positionService.updatePositionOne(_id, my_postion);
+                    await this.telegramService.panel_postion_list(user);
+                }
             } else{    
                 const swapMsg = {
                     "send": {
@@ -262,7 +306,7 @@ export class SwapService implements OnModuleInit {
                 const log = {
                     id: userid, 
                     hash: result.transactionHash, 
-                    mode:'SWAP',
+                    mode: mode,
                     tokenA: token_data.name,
                     tokenB: 'SEI',
                     amount: return_sei,
@@ -271,8 +315,33 @@ export class SwapService implements OnModuleInit {
                     other: msg
                 }
                 this.logService.create(log)
+                if(mode == ACTIONS.POSITION_SELL){
+                    var my_postion:PositionType = this.telegramService.getUserTmp(userid);                     
+                    var remain_amount = Number(my_postion.initial.token_amount); 
+                    my_postion.sell.forEach((ps) => {
+                        remain_amount = remain_amount - Number(ps)
+                    })                    
+                    if(c_amount == '100%'){
+                        remain_amount = 0;
+                    }else if(c_amount == '50%'){
+                        remain_amount = remain_amount / 2;
+                    }else{
+                        remain_amount = remain_amount - Number(c_amount);
+                    }  
+                    const new_active = remain_amount > 0? true:false; 
+                    const _id = my_postion['_id'].toString(); 
+                    my_postion.active = new_active;
+                    my_postion.updated = this.currentTime(); 
+                    var sell_history = my_postion.sell;
+                    const cm = (Number(amount) / (10**6)).toFixed(4)
+                    sell_history.push(cm.toString()); 
+                    my_postion.sell = sell_history;
+                    await this.positionService.updatePositionOne(_id, my_postion);
+                    await this.telegramService.panel_postion_list(user);
+                }
             }   
         }catch(e){ 
+            console.log(">>ERRO ", e)
             await this.telegramService.transactionResponse(user, e.message, 400);
         }   
     }
@@ -386,6 +455,189 @@ export class SwapService implements OnModuleInit {
     }
 
 }
+
+
+// sell_token = async (user: UserType, mode:string, c_amount:string) => {  
+//     try{
+//         const userid = user.id; 
+//         const swap = user.swap;  
+//         const token_data = this.tokenList.find((t)=>t.denom == swap.token); 
+//         const rpc = RPC_URL;
+//         const mnemonic = user.wallet.key; 
+//         const wallet = await restoreWallet(mnemonic);
+//         const firstAccount = await wallet.getAccounts();
+//         const walletAddress = firstAccount[0].address
+//         const signingCosmWasmClient = await getSigningCosmWasmClient(
+//             rpc,
+//             wallet,
+//         );
+//         var amount = (Number(swap.amount) * 10**6).toString();   
+//         const slippage = (Number(swap.slippage) / 100).toString();
+//         var pairContract = token_data.pool;
+//         var tokenContract = token_data.denom; 
+
+//         if(mode == ACTIONS.POSITION_SELL){
+//             const my_postion:PositionType = this.telegramService.getUserTmp(userid); 
+//             if(c_amount == '100%'){
+//                 amount = (Number(my_postion.initial.token_amount) * 10**6).toString();   
+//             }else if(c_amount == '50%'){
+//                 amount = (Number(my_postion.initial.token_amount) * 10**6 /2).toString();   
+//             }else{
+//                 amount = (Number(c_amount) * 10**6).toString();       
+//             } 
+//             pairContract = my_postion.initial.pool;
+//             tokenContract = my_postion.denom;
+//         }    
+
+//         const fee = calculateFee(1000000 * Number(swap.gasprice), "0.1usei");
+
+//         const sQ = await signingCosmWasmClient.queryContractSmart(
+//             pairContract,
+//             {
+//                 "simulation": {
+//                     "offer_asset": {
+//                     "info": {
+//                         "native_token": {
+//                         "denom": "usei"
+//                         }
+//                     },
+//                     "amount": "1000000"
+//                     }
+//                 }
+//             }
+//         );
+
+//         console.log(">HERERE...............")
+
+//         const return_amount = Number(sQ.return_amount) / 1000000;
+//         const return_sei = (1 / return_amount * (Number(amount) / (10 ** 6))).toFixed(4); 
+//         const beliefPrice = (1 / sQ.return_amount) * 1000000; 
+
+//         if( tokenContract.includes('ibc/')){   
+//             const swapMsg = {
+//                 "swap": {
+//                   "max_spread": slippage,  
+//                   "offer_asset": {
+//                     "amount": amount,
+//                     "info": {
+//                       "native_token": {
+//                         "denom": tokenContract
+//                       }
+//                     }
+//                   }
+//                 }
+//             }
+//             const result = await signingCosmWasmClient.execute(
+//                 walletAddress,
+//                 pairContract,
+//                 swapMsg,
+//                 fee,
+//                 undefined,
+//                 [{ denom: tokenContract, amount: amount }]
+//             ); 
+//             const gasused = result.gasUsed;
+//             const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
+//             await this.telegramService.transactionResponse(user, msg, 200); 
+//             const log = {
+//                 id: userid, 
+//                 hash: result.transactionHash, 
+//                 mode: mode,
+//                 tokenA: token_data.name,
+//                 tokenB: 'SEI',
+//                 amount: return_sei,
+//                 t_amount: swap.amount,
+//                 created: this.currentTime(), 
+//                 other: msg
+//             }
+//             this.logService.create(log)
+//             if(mode == ACTIONS.POSITION_SELL){
+//                 var my_postion:PositionType = this.telegramService.getUserTmp(userid);                     
+//                 var remain_amount = Number(my_postion.initial.token_amount); 
+//                 my_postion.sell.forEach((ps) => {
+//                     remain_amount = remain_amount - Number(ps)
+//                 })                    
+//                 if(c_amount == '100%'){
+//                     remain_amount = 0;
+//                 }else if(c_amount == '50%'){
+//                     remain_amount = remain_amount / 2;
+//                 }else{
+//                     remain_amount = remain_amount - Number(c_amount);
+//                 }  
+//                 const new_active = remain_amount > 0? true:false; 
+//                 const _id = my_postion['_id'].toString(); 
+//                 my_postion.active = new_active;
+//                 my_postion.updated = this.currentTime(); 
+//                 var sell_history = my_postion.sell;
+//                 sell_history.push(c_amount);
+//                 my_postion.sell = sell_history;
+//                 await this.positionService.updatePositionOne(_id, my_postion);
+//                 await this.telegramService.panel_postion_list(user);
+//             }
+//         } else{    
+//             const swapMsg = {
+//                 "send": {
+//                     "amount": amount,
+//                     "contract": pairContract,
+//                     "msg": this.toBase64(
+//                         {
+//                             "swap": {
+//                                 "max_spread":slippage
+//                             }  
+//                         }
+//                     )
+//                 }
+//             }     
+//             const result = await signingCosmWasmClient.execute(
+//                 walletAddress,
+//                 tokenContract,
+//                 swapMsg,
+//                 fee,  
+//                 undefined,   
+//             );
+//             const gasused = result.gasUsed;
+//             const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
+//             await this.telegramService.transactionResponse(user, msg, 200); 
+//             const log = {
+//                 id: userid, 
+//                 hash: result.transactionHash, 
+//                 mode: mode,
+//                 tokenA: token_data.name,
+//                 tokenB: 'SEI',
+//                 amount: return_sei,
+//                 t_amount: swap.amount,
+//                 created: this.currentTime(), 
+//                 other: msg
+//             }
+//             this.logService.create(log)
+//             if(mode == ACTIONS.POSITION_SELL){
+//                 var my_postion:PositionType = this.telegramService.getUserTmp(userid);                     
+//                 var remain_amount = Number(my_postion.initial.token_amount); 
+//                 my_postion.sell.forEach((ps) => {
+//                     remain_amount = remain_amount - Number(ps)
+//                 })                    
+//                 if(c_amount == '100%'){
+//                     remain_amount = 0;
+//                 }else if(c_amount == '50%'){
+//                     remain_amount = remain_amount / 2;
+//                 }else{
+//                     remain_amount = remain_amount - Number(c_amount);
+//                 }  
+//                 const new_active = remain_amount > 0? true:false; 
+//                 const _id = my_postion['_id'].toString(); 
+//                 my_postion.active = new_active;
+//                 my_postion.updated = this.currentTime(); 
+//                 var sell_history = my_postion.sell;
+//                 sell_history.push(c_amount);
+//                 my_postion.sell = sell_history;
+//                 await this.positionService.updatePositionOne(_id, my_postion);
+//                 await this.telegramService.panel_postion_list(user);
+//             }
+//         }   
+//     }catch(e){ 
+//         console.log(">>ERRO ", e)
+//         await this.telegramService.transactionResponse(user, e.message, 400);
+//     }   
+// }
 
 
 // https://medium.com/clearmatics/how-i-made-a-uniswap-interface-from-scratch-b51e1027ca87

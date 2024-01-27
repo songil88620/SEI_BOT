@@ -14,7 +14,8 @@ export interface PositionType {
         pool: string,
     },
     updated: string,
-    active: boolean
+    active: boolean,
+    sell: string[]
 }
 
 
@@ -47,6 +48,9 @@ export class Position {
 
     @Prop()
     active: boolean;
+
+    @Prop()
+    sell: string[];
 
 }
 

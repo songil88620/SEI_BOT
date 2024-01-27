@@ -17,7 +17,7 @@ export class PairService {
 
     async onModuleInit() {
         try {
-            await this.updatePair();
+            // await this.updatePair();
         } catch (e) {
         }
     }
