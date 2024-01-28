@@ -2,9 +2,9 @@ import { Inject, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Injectable, Logger } from '@nestjs/common';
 import { ACTIONS, PANELS, TG_TOKEN } from 'src/constant';
 import { UserService } from 'src/user/user.service';
-import { CHAIN_ID, REST_URL, RPC_URL, myName, wethAddress } from 'src/abi/constants';
+import { CHAIN_ID, myName } from 'src/constant';
 import { SwapService } from 'src/swap/swap.service';
-import { standardABI } from 'src/abi/standard';
+
 import { SnipeService } from 'src/snipe/snipe.service';
 import axios from 'axios';
 import { uid } from 'uid';
@@ -318,7 +318,7 @@ export class TelegramService implements OnModuleInit {
                 }
                 if (cmd == 'transfer_send') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
-                    await this.swapService.transfer_token(user);
+                    await this.swapService.transfer_token(user, ACTIONS.TRANSFER, '0', { id: '', address: '' });
                     await this.panel_transfer(user);
                 }
             }
@@ -416,8 +416,7 @@ export class TelegramService implements OnModuleInit {
             const reply_msg = msg.reply_to_message?.text;
             console.log(">>>>MGS", message)
 
-            const user: UserType = await this.userService.findOne(userid)
-            const current_panel = user.current_panel;
+
             // this.bot.deleteMessage(msg.chat.id, msg.message_id)
             //     .then(() => {
             //     })
@@ -542,21 +541,25 @@ export class TelegramService implements OnModuleInit {
                         mirror: 0,
                         limit: 0
                     },
-                    current_panel: PANELS.P_WALLET,
+                    current_panel: PANELS.P_MAIN,
                     current_page: 0
                 }
                 await this.userService.create(new_user);
             }
 
+            const user: UserType = await this.userService.findOne(userid) 
+            const current_panel = user.current_panel;
+
             if (message.includes('/start _')) {
                 const u_code = user.code;
                 const code = message.substring(8, 19)
                 await this.userService.updateReferral(code, u_code, userid)
+                await this.sendStartSelectOption(user);
             }
 
             // return start menu
             if (message == '/start') {
-                this.sendStartSelectOption(user);
+                await this.sendStartSelectOption(user);
             }
 
 
@@ -859,7 +862,7 @@ export class TelegramService implements OnModuleInit {
         const userId = user.id;
         const postions: PositionType[] = await this.positionService.getMyPositions(userId)
         var idx = 0;
-        var pos_msg = "<b>Position Overview:</b>\n\n";
+        var pos_msg = "<b>Positions Overview:</b>\n\n";
         for (var position of postions) {
             idx++;
             const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
@@ -886,10 +889,15 @@ export class TelegramService implements OnModuleInit {
                 "Market Cap: <b>$" + mcap + "</b>\n\n";
         }
 
+        if(postions.length == 0){
+            pos_msg = pos_msg + "You don't have any positions yet, ☹️ \n";
+        }
+
         var sei_balance = await this.swapService.getSeiBalance(user);
         pos_msg = pos_msg + "\n" +
             "Wallet Balance: <b>" + sei_balance + " SEI</b>";
 
+        
         await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
 
         var inline_key = [];
@@ -1211,14 +1219,18 @@ export class TelegramService implements OnModuleInit {
         // await this.sendStartSelectOption(userId)
     }
 
-
-
-
+    referralRewardMsg = async (userId: string, amount: string) => {
+        const options = { parse_mode: "HTML" };
+        await this.bot.sendMessage(userId, "<b>✨✨✨ Congrateration! ✨✨✨</b>\n", options);
+        await this.bot.sendMessage(userId, "<b>💰 You got some referral reward(" + amount + "SEI) from service 💰 </b> \n", options);
+        await this.bot.sendMessage(userId, "<b>📢 We will transfer to you again based on your referral user's transaction(0.15%)</b> \n\n", options);
+    }
+  
 
 
 
     // this.bot.sendMessage(userId, 💡 'Please select an option:', options ❌ ✅ 📌 🏦 ℹ️ 📍  💳 ⛽️  🕐 🔗); 🎲 🏀 🌿 💬 🔔 📢 ✔️ ⭕ 🔱
     // ➰ ™️ ♻️ 💲 💱 〰️ 🔆 🔅 🌱 🌳 🌴 🌲🌼🌻🌺🌸🤸 🚴🧚🔥🚧
     // ⌛⏰💎🔋⌨️🖨️💿📗📙📒📕🏷️📝🔒🛡️⚙️🔗🥇🏆 🥈🥉🧩🎯🔙
-    // 💰 💸🚀👁️‍🗨️💯📈🆕🔄🧺🗑️📊🔎💊🔴🔵🟢🟡🟠✈️🔑🔐🧷
+    // 💰 💸🚀👁️‍🗨️💯📈🆕🔄🧺🗑️📊🔎💊🔴🔵🟢🟡🟠✈️🔑🔐🧷🤩🎉🧧✨☹️
 }

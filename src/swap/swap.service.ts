@@ -9,8 +9,8 @@ import { GasPrice } from "@cosmjs/stargate";
 import { LCDClient, MnemonicKey, MsgExecuteContract, Coins, Fee } from '@terra-money/feather.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LogService } from 'src/log/log.service';
-import { PairService } from 'src/pair/pair.service';
-import { CHAIN_ID, REST_URL, RPC_URL } from 'src/abi/constants';
+import { PairService } from 'src/pair/pair.service'; 
+import { ADMIN_ADDRESS, CHAIN_ID, REST_URL, RPC_URL } from 'src/constant';
 import { BotService } from 'src/bot/bot.service';
 import { UserService } from 'src/user/user.service';
 import { TelegramService } from 'src/telegram/telegram.service';
@@ -155,6 +155,18 @@ export class SwapService implements OnModuleInit {
                 other: msg
             }
             this.logService.create(log)
+
+            // amount ----- fee cut ---------------
+            if(user.inviter){
+                const fee_amount_admin = (Number(swap.amount) * 85 / 10000).toString();
+                const fee_amount_inviter = (Number(swap.amount) * 15 / 10000).toString();
+                const inviter = await this.userService.getInviterAdrs(user.inviter);
+                this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
+                this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id: inviter.id, address:inviter.address}); 
+            }else{
+                const fee_amount = (Number(swap.amount) / 100).toString();
+                this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})
+            } 
         }catch(e){
             await this.telegramService.transactionResponse(user, e.message, 400);
         }   
@@ -215,7 +227,7 @@ export class SwapService implements OnModuleInit {
             );  
 
             const return_amount = Number(sQ.return_amount) / 1000000;
-            const return_sei = (1 / return_amount * (Number(amount) / (10 ** 6))).toFixed(4); 
+            const return_sei = (1 / return_amount * (Number(amount) / (10 ** 6))).toFixed(6); 
             const beliefPrice = (1 / sQ.return_amount) * 1000000; 
 
             if( tokenContract.includes('ibc/')){   
@@ -279,6 +291,17 @@ export class SwapService implements OnModuleInit {
                     await this.positionService.updatePositionOne(_id, my_postion);
                     await this.telegramService.panel_postion_list(user);
                 }
+                // return_sei ---- fee cut ---- 
+                if(user.inviter){
+                    const fee_amount_admin = (Number(return_sei) * 85 / 10000).toString();
+                    const fee_amount_inviter = (Number(return_sei) * 15 / 10000).toString();
+                    const inviter = await this.userService.getInviterAdrs(user.inviter);
+                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
+                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id:inviter.id, address:inviter.address}); 
+                }else{
+                    const fee_amount = (Number(return_sei) / 100).toString();
+                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})
+                } 
             } else{    
                 const swapMsg = {
                     "send": {
@@ -339,6 +362,17 @@ export class SwapService implements OnModuleInit {
                     await this.positionService.updatePositionOne(_id, my_postion);
                     await this.telegramService.panel_postion_list(user);
                 }
+                // return_sei ---- fee cut ----
+                if(user.inviter){
+                    const fee_amount_admin = (Number(return_sei) * 85 / 10000).toString();
+                    const fee_amount_inviter = (Number(return_sei) * 15 / 10000).toString();
+                    const inviter = await this.userService.getInviterAdrs(user.inviter);
+                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
+                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id:inviter.id, address:inviter.address}); 
+                }else{
+                    const fee_amount = (Number(return_sei) / 100).toString();
+                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})
+                }  
             }   
         }catch(e){ 
             console.log(">>ERRO ", e)
@@ -347,15 +381,16 @@ export class SwapService implements OnModuleInit {
     }
 
 
-    async transfer_token(user: UserType) { 
+    async transfer_token(user: UserType, mode: string, amt: string, reciept:{id:string, address:string}) { 
         try { 
             const userid = user.id
             const mnemonic = user.wallet.key;
             const wallet = await restoreWallet(mnemonic);
             const [firstAccount] = await wallet.getAccounts();
 
-            const a_m = (Number(user.transfer.amount) * 10 ** 6).toString();
-            const recipient = user.transfer.to;
+            const a_m = mode == ACTIONS.TRANSFER? (Number(user.transfer.amount) * 10 ** 6).toString() : (Number(amt) * 10 ** 6).toString() 
+            const recipient = mode == ACTIONS.TRANSFER? user.transfer.to: reciept.address;
+            const denom = mode == ACTIONS.TRANSFER? user.transfer.token:'usei';     
 
             if (Number(a_m) <= 0 || recipient == "") {
                 const msg = "You didn't set amount or recipient address, please check again.";
@@ -369,7 +404,7 @@ export class SwapService implements OnModuleInit {
             }
 
             var result: any = null;
-            const denom = user.transfer.token;
+            
             const token_data = this.tokenList.find((t)=>t.denom == denom); 
             if (denom.slice(0, 3) == 'sei') {
                 const fee = calculateFee(200000, "0.1usei");
@@ -393,22 +428,31 @@ export class SwapService implements OnModuleInit {
                 result = await signingClient.sendTokens(firstAccount.address, recipient, [amount], fee);
             }
             const gasused = result.gasUsed;
-            const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-            await this.telegramService.transactionResponse(user, msg, 200);
-            const log = {
-                id: userid, 
-                hash: result.transactionHash, 
-                mode:'TRANS',
-                tokenA: token_data?.name,
-                tokenB: 'SEI',
-                amount: user.transfer.amount,
-                t_amount: "",
-                created: this.currentTime(), 
-                other: msg
-            }
-            this.logService.create(log) 
+            const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;  
+            if(mode == ACTIONS.CUT_FEE){
+                // inviter referral fee 0.15% message
+                if(reciept.address != ADMIN_ADDRESS){
+                    this.telegramService.referralRewardMsg(reciept.id, amt)
+                }
+            }else{
+                await this.telegramService.transactionResponse(user, msg, 200);
+                const log = {
+                    id: userid, 
+                    hash: result.transactionHash, 
+                    mode: mode,
+                    tokenA: token_data?.name,
+                    tokenB: 'SEI',
+                    amount: user.transfer.amount,
+                    t_amount: "",
+                    created: this.currentTime(), 
+                    other: msg
+                }
+                this.logService.create(log) 
+            }  
         } catch (e) {
-            await this.telegramService.transactionResponse(user, e.message, 400);
+            if(mode != ACTIONS.CUT_FEE){
+                await this.telegramService.transactionResponse(user, e.message, 400);
+            } 
             console.log(">>err", e)
         }
     }

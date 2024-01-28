@@ -12,6 +12,14 @@ export class UserService {
     @InjectModel('user') private readonly model: Model<UserDocument>,
   ) { }
 
+  async onModuleInit() {
+    try {
+       
+    } catch (e) {
+
+    }
+  }
+
   async create(data: any) {
     const id = data.id;
     const user = await this.model.findOne({ id: id }).exec();
@@ -42,6 +50,11 @@ export class UserService {
     const id = user.id;
     await this.model.findOneAndUpdate({ id }, { referral }, { new: true }).exec();
     await this.model.findOneAndUpdate({ id: me_id }, { inviter: code })
+  }
+
+  async getInviterAdrs(inviter: string) {
+    const _inviter = await this.model.findOne({ code: inviter }).exec()
+    return { id: _inviter.id, address: _inviter.wallet.address };
   }
 
   // yet not used
