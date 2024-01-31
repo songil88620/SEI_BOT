@@ -13,7 +13,7 @@ export const CHAIN_ID = 'pacific-1';
 // export const myName = "https://t.me/SSeiyan_Bot";
 export const myName = "https://t.me/sei_test999_bot";
 
-export const ADMIN_ADDRESS = '';
+export const ADMIN_ADDRESS = 'sei19gnkt5sqc6rkmaggl687h8gu5f7ydkczg6rq3e';
 
 export const ACTIONS = {
     SWAP: 'SWAP',
@@ -24,6 +24,8 @@ export const ACTIONS = {
 }
 
 export const PANELS = {
+    P_A_FEE:'admin_ref_fee', 
+    P_SETTING:'setting_panel',
     P_MAIN:'main_panel',
     P_WALLET: 'wallet_panel',
     P_SWAP: 'swap_panel',
@@ -31,5 +33,6 @@ export const PANELS = {
     P_POSITION_LIST: 'position_list_panel',
     P_POSITION_CREATE: 'position_create_panel',
     P_POSITION_MANAGE: 'position_manage_panel',
-
 }
+
+export const ADMINS = ['6305443816', '5964616405'];

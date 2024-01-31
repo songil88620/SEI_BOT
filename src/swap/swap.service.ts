@@ -24,8 +24,7 @@ import { PositionType } from 'src/position/position.schema';
 export class SwapService implements OnModuleInit {
 
     public provider: any;
-    private tokenList = [];
-
+    private tokenList = [];   
 
     constructor(
         @Inject(forwardRef(() => TelegramService)) private telegramService: TelegramService,
@@ -63,6 +62,7 @@ export class SwapService implements OnModuleInit {
         try{  
             const userid = user.id;
             const swap = user.swap;  
+            const setting = user.setting;
             const token_data = this.tokenList.find((t)=>t.denom == swap.token);    
             
             const rpc = RPC_URL;
@@ -75,7 +75,7 @@ export class SwapService implements OnModuleInit {
                 wallet,
             );
             const amount = (Number(swap.amount) * 10**6).toString(); 
-            const slippage = (Number(swap.slippage) / 100).toString();
+            const slippage = (Number(setting.buy_slippage) / 100).toString();
             const sei_balance = await this.getSeiBalance(user);
             if(sei_balance < Number(swap.amount)){
                 await this.telegramService.transactionResponse(user, 'Low balance, charge you SEI balance', 301);
@@ -112,7 +112,7 @@ export class SwapService implements OnModuleInit {
                 }
             }; 
             
-            const fee = calculateFee(1000000 * Number(swap.gasprice), "0.1usei");
+            const fee = calculateFee(1000000 * Number(setting.buy_gasprice), "0.1usei");
             const result = await signingCosmWasmClient.execute(
                 walletAddress,
                 pairContract,
@@ -158,9 +158,11 @@ export class SwapService implements OnModuleInit {
 
             // amount ----- fee cut ---------------
             if(user.inviter){
-                const fee_amount_admin = (Number(swap.amount) * 85 / 10000).toString();
-                const fee_amount_inviter = (Number(swap.amount) * 15 / 10000).toString();
                 const inviter = await this.userService.getInviterAdrs(user.inviter);
+                const fee_inviter = inviter.fee_type;
+                const fee_admin = 100 - fee_inviter;
+                const fee_amount_admin = (Number(swap.amount) * fee_admin / 10000).toString();
+                const fee_amount_inviter = (Number(swap.amount) * fee_inviter / 10000).toString();   
                 this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
                 this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id: inviter.id, address:inviter.address}); 
             }else{
@@ -176,6 +178,7 @@ export class SwapService implements OnModuleInit {
         try{
             const userid = user.id; 
             const swap = user.swap;  
+            const setting = user.setting;
             const token_data = this.tokenList.find((t)=>t.denom == swap.token); 
             const rpc = RPC_URL;
             const mnemonic = user.wallet.key; 
@@ -186,8 +189,8 @@ export class SwapService implements OnModuleInit {
                 rpc,
                 wallet,
             );
-            var amount = (Number(swap.amount) * 10**6).toString();   
-            const slippage = (Number(swap.slippage) / 100).toString();
+            var amount = (Math.floor(Number(swap.amount) * 10**6)).toString();   
+            const slippage = (Number(setting.sell_slippage) / 100).toString();
             var pairContract = token_data.pool;
             var tokenContract = token_data.denom; 
 
@@ -198,18 +201,18 @@ export class SwapService implements OnModuleInit {
                     remain_amount = remain_amount - Number(ps)
                 })  
                 if(c_amount == '100%'){
-                    amount = (Number(remain_amount) * 10**6).toString();   
+                    amount = (Math.floor(Number(remain_amount) * 10**6)).toString();   
                 }else if(c_amount == '50%'){
-                    amount = (Number(remain_amount) * 10**6 /2).toString();   
+                    amount = (Math.floor(Number(remain_amount) * 10**6 /2)).toString();   
                 }else{
-                    amount = (Number(c_amount) * 10**6).toString();       
+                    amount = (Math.floor(Number(c_amount) * 10**6)).toString();       
                 } 
                 pairContract = my_postion.initial.pool;
                 tokenContract = my_postion.denom;
             }    
 
-            const fee = calculateFee(1000000 * Number(swap.gasprice), "0.1usei");
-
+            const fee = calculateFee(1000000 * Number(setting.sell_gasprice), "0.1usei");
+        
             const sQ = await signingCosmWasmClient.queryContractSmart(
                 pairContract,
                 {
@@ -224,7 +227,7 @@ export class SwapService implements OnModuleInit {
                         }
                     }
                 }
-            );  
+            );   
 
             const return_amount = Number(sQ.return_amount) / 1000000;
             const return_sei = (1 / return_amount * (Number(amount) / (10 ** 6))).toFixed(6); 
@@ -293,9 +296,11 @@ export class SwapService implements OnModuleInit {
                 }
                 // return_sei ---- fee cut ---- 
                 if(user.inviter){
-                    const fee_amount_admin = (Number(return_sei) * 85 / 10000).toString();
-                    const fee_amount_inviter = (Number(return_sei) * 15 / 10000).toString();
                     const inviter = await this.userService.getInviterAdrs(user.inviter);
+                    const fee_inviter = inviter.fee_type;
+                    const fee_admin = 100 - fee_inviter;
+                    const fee_amount_admin = (Number(return_sei) * fee_admin / 10000).toString();
+                    const fee_amount_inviter = (Number(return_sei) * fee_inviter / 10000).toString();     
                     this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
                     this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id:inviter.id, address:inviter.address}); 
                 }else{
@@ -364,9 +369,11 @@ export class SwapService implements OnModuleInit {
                 }
                 // return_sei ---- fee cut ----
                 if(user.inviter){
-                    const fee_amount_admin = (Number(return_sei) * 85 / 10000).toString();
-                    const fee_amount_inviter = (Number(return_sei) * 15 / 10000).toString();
                     const inviter = await this.userService.getInviterAdrs(user.inviter);
+                    const fee_inviter = inviter.fee_type;
+                    const fee_admin = 100 - fee_inviter;
+                    const fee_amount_admin = (Number(return_sei) * fee_admin / 10000).toString();
+                    const fee_amount_inviter = (Number(return_sei) * fee_inviter / 10000).toString(); 
                     this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
                     this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id:inviter.id, address:inviter.address}); 
                 }else{
@@ -388,7 +395,7 @@ export class SwapService implements OnModuleInit {
             const wallet = await restoreWallet(mnemonic);
             const [firstAccount] = await wallet.getAccounts();
 
-            const a_m = mode == ACTIONS.TRANSFER? (Number(user.transfer.amount) * 10 ** 6).toString() : (Number(amt) * 10 ** 6).toString() 
+            const a_m = mode == ACTIONS.TRANSFER? (Math.floor(Number(user.transfer.amount) * 10 ** 6)).toString() : (Math.floor(Number(amt) * 10 ** 6)).toString() 
             const recipient = mode == ACTIONS.TRANSFER? user.transfer.to: reciept.address;
             const denom = mode == ACTIONS.TRANSFER? user.transfer.token:'usei';     
 

@@ -1,10 +1,9 @@
 import { Inject, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Injectable, Logger } from '@nestjs/common';
-import { ACTIONS, PANELS, TG_TOKEN } from 'src/constant';
+import { ACTIONS, ADMINS, PANELS, TG_TOKEN } from 'src/constant';
 import { UserService } from 'src/user/user.service';
 import { CHAIN_ID, myName } from 'src/constant';
 import { SwapService } from 'src/swap/swap.service';
-
 import { SnipeService } from 'src/snipe/snipe.service';
 import axios from 'axios';
 import { uid } from 'uid';
@@ -16,6 +15,7 @@ import { UserType } from 'src/user/user.schema';
 import { PositionService } from 'src/position/position.service';
 import { PositionType } from 'src/position/position.schema';
 import { PairType } from 'src/pair/pair.schema';
+import { set } from 'mongoose';
 
 const fs = require('fs')
 const path = require('path')
@@ -83,8 +83,8 @@ export class TelegramService implements OnModuleInit {
         return;
     }
 
-    cleanrMessage = async (chatid: string, msgid: number) => {
-        for (var i = 0; i <= 10; i++) {
+    cleanrMessage = async (chatid: string, msgid: number, len: number) => {
+        for (var i = 0; i <= len; i++) {
             try {
                 await this.bot.deleteMessage(chatid, msgid - i)
             } catch (e) { }
@@ -141,18 +141,17 @@ export class TelegramService implements OnModuleInit {
 
                     await this.bot.sendMessage(id, "<b>Your referral link : </b><code>" + myName + "?start=_" + code + "</code>\n<b>Referral Users : " + referr_len + "</b>\n" + ref_msg, { parse_mode: "HTML" });
                     await this.sendStartSelectOption(user);
-                    await this.cleanrMessage(query.message.chat.id, msgid)
+                    await this.cleanrMessage(query.message.chat.id, msgid, 10)
                 }
 
                 if (cmd == 'call_m_positions') {
-                    console.log(">>>>>>>>>>>>>>>PP")
                     await this.panel_postion_list(user)
-
                 }
 
-                if (cmd == 'call_m_leaderboard') {
-
+                if (cmd == 'call_m_setting') {
+                    await this.panel_setting(user)
                 }
+
             }
 
             // wallet setting function
@@ -166,6 +165,7 @@ export class TelegramService implements OnModuleInit {
                         address,
                         key
                     };
+                    user.wallet = wallet;
                     await this.userService.update(id, { wallet: wallet });
                     const options = {
                         parse_mode: "HTML"
@@ -215,6 +215,7 @@ export class TelegramService implements OnModuleInit {
                         address: '',
                         key: ''
                     }
+                    user.wallet = wallet;
                     await this.userService.update(id, { wallet });
                     await this.bot.sendMessage(id, "<b>Wallet is deleted.</b> \n", { parse_mode: "HTML" });
                     await this.panel_wallets(user);
@@ -382,6 +383,50 @@ export class TelegramService implements OnModuleInit {
                 }
             }
 
+            if (cmd.includes('setting_')) {
+                const options = {
+                    reply_markup: {
+                        force_reply: true
+                    },
+                    parse_mode: "HTML"
+                };
+                if (cmd == 'setting_buygas') {
+                    await this.bot.sendMessage(id, "<b>Please set gasprice for buying</b>", { parse_mode: "HTML" });
+                    await this.bot.sendMessage(id, "<b>Gasprice (Buying)</b>", options);
+                }
+                if (cmd == 'setting_buyslip') {
+                    await this.bot.sendMessage(id, "<b>Please set slippage for buying</b>", { parse_mode: "HTML" });
+                    await this.bot.sendMessage(id, "<b>Slippage (Buying)</b>", options);
+                }
+                if (cmd == 'setting_sellgas') {
+                    await this.bot.sendMessage(id, "<b>Please set gasprice for selling</b>", { parse_mode: "HTML" });
+                    await this.bot.sendMessage(id, "<b>Gasprice (Selling)</b>", options);
+                }
+                if (cmd == 'setting_sellslip') {
+                    await this.bot.sendMessage(id, "<b>Please set slippage for selling</b>", { parse_mode: "HTML" });
+                    await this.bot.sendMessage(id, "<b>Slippage (Selling)</b>", options);
+                }
+            }
+
+
+            // admin panel
+            if (cmd.includes('admin_')) {
+                const options = {
+                    reply_markup: {
+                        force_reply: true
+                    },
+                    parse_mode: "HTML"
+                };
+                if (cmd == 'admin_manage_referral_type') {
+                    await this.bot.sendMessage(id, "<b>Please input referral code</b>", { parse_mode: "HTML" });
+                    await this.bot.sendMessage(id, "<b>Referral Code</b>", options);
+                }
+                if (cmd == 'admin_ref_fee_edit') {
+                    await this.bot.sendMessage(id, "<b>Please input reward fee percent(0~100)%</b>", { parse_mode: "HTML" });
+                    await this.bot.sendMessage(id, "<b>Reward Fee</b>", options);
+                }
+            }
+
 
 
 
@@ -390,7 +435,7 @@ export class TelegramService implements OnModuleInit {
             if (cmd == "to_start") {
 
                 if (current_panel == PANELS.P_POSITION_CREATE) {
-                    await this.panel_postion_list(user)
+                    await this.sendStartSelectOption(user)
                 } else if (current_panel == PANELS.P_POSITION_MANAGE) {
                     await this.panel_postion_list(user)
                 } else {
@@ -398,7 +443,7 @@ export class TelegramService implements OnModuleInit {
                 }
             }
 
-            await this.cleanrMessage(id, msgid)
+            await this.cleanrMessage(id, msgid, 10)
             return;
         } catch (error) {
             console.log(">>>Error")
@@ -542,12 +587,19 @@ export class TelegramService implements OnModuleInit {
                         limit: 0
                     },
                     current_panel: PANELS.P_MAIN,
-                    current_page: 0
+                    current_page: 0,
+                    setting: {
+                        buy_gasprice: '3',
+                        buy_slippage: '0.5',
+                        sell_gasprice: '3',
+                        sell_slippage: '0.5',
+                    },
+                    fee_type: 10,
                 }
                 await this.userService.create(new_user);
             }
 
-            const user: UserType = await this.userService.findOne(userid) 
+            var user: UserType = await this.userService.findOne(userid)
             const current_panel = user.current_panel;
 
             if (message.includes('/start _')) {
@@ -575,17 +627,20 @@ export class TelegramService implements OnModuleInit {
                         address,
                         key
                     };
+                    user.wallet = wallet;
                     await this.userService.update(userid, { wallet: wallet });
                     const options = {
                         parse_mode: "HTML"
                     };
                     const w_msg = "<b>💰 Wallet " + "</b> \n<b>Address:</b> <code>" + address + "</code>\n<b>Seed:</b> <code>" + key + "</code>\n\n";
                     await this.bot.sendMessage(userid, "<b>🎉 Your wallet is imported successfully.</b> \n\n" + w_msg, options);
+                    await this.panel_wallets(user);
                 } catch (e) {
                     const options = {
                         parse_mode: "HTML"
                     };
                     await this.bot.sendMessage(userid, "<b>💡 Error is occured. Maybe wrong seed.</b> \n", options);
+                    await this.panel_wallets(user);
                 }
             }
 
@@ -787,7 +842,141 @@ export class TelegramService implements OnModuleInit {
                 }
             }
 
-            await this.cleanrMessage(id, msgid)
+            if (reply_msg == 'Gasprice (Buying)') {
+                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                if (decimalRegex.test(message)) {
+                    var setting = user.setting;
+                    setting.buy_gasprice = message;
+                    user.setting = setting;
+                    await this.userService.update(userid, { setting });
+                    await this.bot.sendMessage(userid, "<b>Gas Price is set successfully.</b> \n", { parse_mode: "HTML" });
+                    await this.panel_setting(user);
+                } else {
+                    await this.bot.sendMessage(userid, "<b>Invalid amount input, only decimal can be acceptable.</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Gasprice (Buying)</b>", options);
+                }
+            }
+
+            if (reply_msg == 'Slippage (Buying)') {
+                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                if (decimalRegex.test(message)) {
+                    var setting = user.setting;
+                    setting.buy_slippage = message;
+                    user.setting = setting;
+                    await this.userService.update(userid, { setting });
+                    await this.bot.sendMessage(userid, "<b>Slippage is set successfully.</b> \n", { parse_mode: "HTML" });
+                    await this.panel_setting(user);
+                } else {
+                    await this.bot.sendMessage(userid, "<b>Invalid amount input, only decimal can be acceptable.</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Slippage (Buying)</b>", options);
+                }
+            }
+
+            if (reply_msg == 'Gasprice (Selling)') {
+                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                if (decimalRegex.test(message)) {
+                    var setting = user.setting;
+                    setting.sell_gasprice = message;
+                    user.setting = setting;
+                    await this.userService.update(userid, { setting });
+                    await this.bot.sendMessage(userid, "<b>Gas Price is set successfully.</b> \n", { parse_mode: "HTML" });
+                    await this.panel_setting(user);
+                } else {
+                    await this.bot.sendMessage(userid, "<b>Invalid amount input, only decimal can be acceptable.</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Gasprice (Selling)</b>", options);
+                }
+            }
+
+            if (reply_msg == 'Slippage (Selling)') {
+                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                if (decimalRegex.test(message)) {
+                    var setting = user.setting;
+                    setting.sell_slippage = message;
+                    user.setting = setting;
+                    await this.userService.update(userid, { setting });
+                    await this.bot.sendMessage(userid, "<b>Slippage is set successfully.</b> \n", { parse_mode: "HTML" });
+                    await this.panel_setting(user);
+                } else {
+                    await this.bot.sendMessage(userid, "<b>Invalid amount input, only decimal can be acceptable.</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Slippage (Selling)</b>", options);
+                }
+            }
+
+
+
+            // admin ref setting
+            if (reply_msg == 'Referral Code') {
+                const ref_user = await this.userService.getUserByRefCode(message);
+                if (ref_user) {
+                    await this.panel_a_manage_ref_type(user, ref_user)
+                } else {
+                    await this.bot.sendMessage(userid, "<b>Invalid code, user doesn't exist. Try again with correct code.</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Referral Code</b>", options);
+                }
+            }
+
+            if (reply_msg == 'Reward Fee') {
+                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                if (decimalRegex.test(message)) {
+                    if (message > 100 || message < 0) {
+                        await this.bot.sendMessage(userid, "<b>Invalid percent input, 0 ~ 100 is possible</b> \n", { parse_mode: "HTML" });
+                        const options = {
+                            reply_markup: {
+                                force_reply: true
+                            },
+                            parse_mode: "HTML"
+                        };
+                        await this.bot.sendMessage(userid, "<b>Reward Fee</b>", options);
+                    } else {
+                        const ref_userid = this.uc_tmp[userid];
+                        await this.userService.update(ref_userid, { fee_type: message });
+                        const ref_user = await this.userService.findOne(ref_userid);
+                        await this.bot.sendMessage(userid, "<b>Reward fee percent set successfully.</b> \n", { parse_mode: "HTML" });
+                        await this.panel_a_manage_ref_type(user, ref_user);
+                    }
+                } else {
+                    await this.bot.sendMessage(userid, "<b>Invalid percent input, only decimal can be acceptable.</b> \n", { parse_mode: "HTML" });
+                    const options = {
+                        reply_markup: {
+                            force_reply: true
+                        },
+                        parse_mode: "HTML"
+                    };
+                    await this.bot.sendMessage(userid, "<b>Reward Fee</b>", options);
+                }
+            }
+
+            await this.cleanrMessage(id, msgid, 10)
             return;
         } catch (e) {
             console.log(">>e", e)
@@ -796,66 +985,125 @@ export class TelegramService implements OnModuleInit {
 
     }
 
-    panel_manage_position = async (user: UserType) => {
+
+    panel_a_manage_ref_type = async (user: UserType, ref_user: UserType) => {
+        try {
+            const userId = user.id;
+            var w_msg = "<b>User info review:</b>";
+            w_msg = w_msg + "\n<b>📛 Name: " + ref_user.username + "</b>"
+            w_msg = w_msg + "\n<b>🔗 Ref Code: </b><code>" + ref_user.code + "</code>";
+            w_msg = w_msg + "\n<b>🍔 Reward Fee: " + (ref_user.fee_type ? ref_user.fee_type : "0") + "%</b>\n";
+            await this.bot.sendMessage(userId, w_msg, { parse_mode: "HTML" });
+
+            var inline_key = [];
+            inline_key.push([
+                { text: 'Edit Fee(%)', callback_data: 'admin_ref_fee_edit' },
+            ]);
+            inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
+            const options = {
+                reply_markup: {
+                    inline_keyboard: inline_key
+                }
+            };
+            this.uc_tmp[userId] = ref_user.id;
+            await this.bot.sendMessage(userId, 'Referral user fee percent setting', options);
+            await this.userService.update(userId, { current_panel: PANELS.P_A_FEE });
+
+        } catch (e) {
+            console.log(">>>ER", e)
+        }
+    }
+
+    panel_setting = async (user: UserType) => {
         const userId = user.id
-        const page = user.current_page;
-        const p: { position: PositionType, len: number } = await this.positionService.getMyPositionOne(userId, page)
-        const position: PositionType = p.position;
-        this.uc_tmp[userId] = position;
-        const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
-        const used_m = Number(position.initial.sei_amount) * Number(position.initial.sei_price);
-        const curt_m = Number(position.initial.token_amount) * Number(recent_token_data.other_2.base_token_price);
-        const profit_m = curt_m - used_m;
-        const profit_m_vs_sei = (profit_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
-        const profit_m_percent = ((profit_m / used_m) * 100).toFixed(2);
-        const initial_sei = Number(position.initial.sei_amount).toFixed(5);
-        const a_token_vs_sei = (Number(recent_token_data.other_2.base_token_price) / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
-        var bs = Number(position.initial.token_amount);
-        position.sell.forEach((ps) => {
-            bs = bs - Number(ps)
-        })
-        const balance_token = Number(bs).toFixed(5) + " $" + position.name + "/" + (curt_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5) + ' SEI/ $' + (curt_m).toFixed(5);
-        const mcap = (Number(recent_token_data.other_2.cap) * Number(recent_token_data.other_2.base_token_price)).toFixed(5) + "/ $" + recent_token_data.other_2.base_token_price;
-
-        var pos_msg =
-            "<b>" + position.name + "</b>\n" +
-            "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
-            "Initial: <b>" + initial_sei + " SEI</b>\n" +
-            "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
-            "Balance: <b>" + balance_token + "</b>\n" +
-            "Market Cap: <b>$" + mcap + "</b>\n\n";
-        await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
-
+        const buy_gas = user?.setting?.buy_gasprice ? user.setting.buy_gasprice : 0;
+        const buy_slip = user?.setting?.buy_slippage ? user.setting.buy_slippage : 0;
+        const sell_gas = user?.setting?.sell_gasprice ? user.setting.sell_gasprice : 0;
+        const sell_slip = user?.setting?.sell_slippage ? user.setting.sell_slippage : 0;
         var inline_key = [];
         inline_key.push([
-            { text: '◀️ Prev', callback_data: 'pos_mng_prev' },
-            { text: position.name, callback_data: 'pos_mng_null' },
-            { text: 'Next ▶️', callback_data: 'pos_mng_next' },
+            { text: 'Buy Gas Price: ' + buy_gas, callback_data: 'setting_buygas' },
+            { text: 'Buy Slippage: ' + buy_slip + "%", callback_data: 'setting_buyslip' },
         ]);
         inline_key.push([
-            { text: 'Sell 100%', callback_data: 'pos_mng_sellall' },
-            { text: 'Sell 50%', callback_data: 'pos_mng_sellhal' },
-        ]);
-        inline_key.push([{ text: 'Sell X', callback_data: 'pos_mng_sellxxx' }]);
-        inline_key.push([
-            { text: '🔎 Seiscan', url: 'https://www.seiscan.app/pacific-1/contracts/' + position.denom },
-            { text: '📊 Chart', url: 'https://coinhall.org/sei/' + position.initial.pool }
-        ]);
-        inline_key.push([
-            { text: '🔄 Refresh', callback_data: 'pos_mng_refresh' },
-            { text: '🗑️ Remove', callback_data: 'pos_mng_remove' },
+            { text: 'Sell Gas Price: ' + sell_gas, callback_data: 'setting_sellgas' },
+            { text: 'Sell Slippage: ' + sell_slip + "%", callback_data: 'setting_sellslip' },
         ]);
         inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
-
-
         const options = {
             reply_markup: {
                 inline_keyboard: inline_key
             }
         };
-        await this.bot.sendMessage(userId, 'Setting for position management', options);
-        await this.userService.update(userId, { current_panel: PANELS.P_POSITION_MANAGE });
+        await this.bot.sendMessage(userId, 'Initial setting for gas & slippage', options);
+        await this.userService.update(userId, { current_panel: PANELS.P_SETTING });
         return;
+    }
+
+    panel_manage_position = async (user: UserType) => {
+        try {
+            const userId = user.id
+            const page = user.current_page;
+            const p: { position: PositionType, len: number } = await this.positionService.getMyPositionOne(userId, page)
+            const position: PositionType = p.position;
+            this.uc_tmp[userId] = position;
+            const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
+            const used_m = Number(position.initial.sei_amount) * Number(position.initial.sei_price);
+            const curt_m = Number(position.initial.token_amount) * Number(recent_token_data.other_2.base_token_price);
+            const profit_m = curt_m - used_m;
+            const profit_m_vs_sei = (profit_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+            const profit_m_percent = ((profit_m / used_m) * 100).toFixed(2);
+            const initial_sei = Number(position.initial.sei_amount).toFixed(5);
+            const a_token_vs_sei = (Number(recent_token_data.other_2.base_token_price) / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+            var bs = Number(position.initial.token_amount);
+            position.sell.forEach((ps) => {
+                bs = bs - Number(ps)
+            })
+            const balance_token = Number(bs).toFixed(5) + " $" + position.name + "/" + (curt_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5) + ' SEI/ $' + (curt_m).toFixed(5);
+            const mcap = (Number(recent_token_data.other_2.cap) * Number(recent_token_data.other_2.base_token_price)).toFixed(5) + "/ $" + recent_token_data.other_2.base_token_price;
+
+            var pos_msg =
+                "<b>" + position.name + "</b>\n" +
+                "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+                "Initial: <b>" + initial_sei + " SEI</b>\n" +
+                "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
+                "Balance: <b>" + balance_token + "</b>\n" +
+                "Market Cap: <b>$" + mcap + "</b>\n\n";
+            await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
+
+            var inline_key = [];
+            inline_key.push([
+                { text: '◀️ Prev', callback_data: 'pos_mng_prev' },
+                { text: position.name, callback_data: 'pos_mng_null' },
+                { text: 'Next ▶️', callback_data: 'pos_mng_next' },
+            ]);
+            inline_key.push([
+                { text: 'Sell 100%', callback_data: 'pos_mng_sellall' },
+                { text: 'Sell 50%', callback_data: 'pos_mng_sellhal' },
+            ]);
+            inline_key.push([{ text: 'Sell X', callback_data: 'pos_mng_sellxxx' }]);
+            inline_key.push([
+                { text: '🔎 Seiscan', url: 'https://www.seiscan.app/pacific-1/contracts/' + position.denom },
+                { text: '📊 Chart', url: 'https://coinhall.org/sei/' + position.initial.pool }
+            ]);
+            inline_key.push([
+                { text: '🔄 Refresh', callback_data: 'pos_mng_refresh' },
+                { text: '🗑️ Remove', callback_data: 'pos_mng_remove' },
+            ]);
+            inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
+
+
+            const options = {
+                reply_markup: {
+                    inline_keyboard: inline_key
+                }
+            };
+            await this.bot.sendMessage(userId, 'Setting for position management', options);
+            await this.userService.update(userId, { current_panel: PANELS.P_POSITION_MANAGE });
+            return;
+        } catch (e) {
+            return;
+        }
     }
 
     panel_postion_list = async (user: UserType) => {
@@ -889,7 +1137,7 @@ export class TelegramService implements OnModuleInit {
                 "Market Cap: <b>$" + mcap + "</b>\n\n";
         }
 
-        if(postions.length == 0){
+        if (postions.length == 0) {
             pos_msg = pos_msg + "You don't have any positions yet, ☹️ \n";
         }
 
@@ -897,12 +1145,12 @@ export class TelegramService implements OnModuleInit {
         pos_msg = pos_msg + "\n" +
             "Wallet Balance: <b>" + sei_balance + " SEI</b>";
 
-        
+
         await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
 
         var inline_key = [];
-        inline_key.push([{ text: '📈 Sell & Manage ', callback_data: 'position_list_sell' }]);
-        inline_key.push([{ text: '🆕 Create Manage', callback_data: 'position_list_create' }]);
+        postions.length > 0 && inline_key.push([{ text: '📈 Sell & Manage ', callback_data: 'position_list_sell' }]);
+        // inline_key.push([{ text: '🆕 Create Manage', callback_data: 'position_list_create' }]);
         inline_key.push([{ text: '🔄 Refresh', callback_data: 'position_list_refresh' }]);
         inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
 
@@ -919,10 +1167,11 @@ export class TelegramService implements OnModuleInit {
     panel_create_position = async (user: UserType) => {
         const userId = user.id
         const sw = user.swap;
+        const setting = user.setting
         const token = sw.token;
         const amount = sw.amount;
-        const gasprice = sw.gasprice;
-        const slippage = sw.slippage;
+        const gasprice = setting.buy_gasprice;
+        const slippage = setting.buy_slippage;
         const mode = true;
         const t_s = token.length > 30 ? token.substring(0, 10) + "..." + token.slice(-10) : token;
 
@@ -943,20 +1192,22 @@ export class TelegramService implements OnModuleInit {
             w_msg = w_msg + "\n<b>🚀 Price Change:</b> <code>1H:" + p_h1 + "%, 24H:" + p_h24 + "%</code>"
             w_msg = w_msg + "\n<b>➰" + td.name + "/SEI:</b> <code>" + rate + "/1</code>"
         }
+        w_msg = w_msg + "\n<b>🔥 GasPrice: " + gasprice + "</b>"
+        w_msg = w_msg + "\n<b>🚧 Slippage: " + slippage + "%</b>"
         await this.bot.sendMessage(userId, w_msg, { parse_mode: "HTML" });
 
         var inline_key = [];
-        var tmp = [];
-        for (var i = 1; i < this.hotListForSwap.length; i++) {
-            tmp.push({ text: token == this.hotListForSwap[i].denom ? "✅ " + this.hotListForSwap[i].name : this.hotListForSwap[i].name, callback_data: "buysell_contract_" + this.hotListForSwap[i].name });
-            if ((i - 1) % 4 == 3) {
-                inline_key.push(tmp);
-                tmp = [];
-            }
-        }
-        if ((this.hotListForSwap.length - 1) % 4 != 3) {
-            inline_key.push(tmp);
-        }
+        // var tmp = [];
+        // for (var i = 1; i < this.hotListForSwap.length; i++) {
+        //     tmp.push({ text: token == this.hotListForSwap[i].denom ? "✅ " + this.hotListForSwap[i].name : this.hotListForSwap[i].name, callback_data: "buysell_contract_" + this.hotListForSwap[i].name });
+        //     if ((i - 1) % 4 == 3) {
+        //         inline_key.push(tmp);
+        //         tmp = [];
+        //     }
+        // }
+        // if ((this.hotListForSwap.length - 1) % 4 != 3) {
+        //     inline_key.push(tmp);
+        // }
 
         var amount_txt = 'Amount: '
         if (mode) {
@@ -968,14 +1219,15 @@ export class TelegramService implements OnModuleInit {
                 amount_txt = amount_txt + amount + " token";
             }
         }
+
         inline_key.push([{ text: 'Token Denom OR Address: ' + t_s, callback_data: 'buysell_token' }]);
         inline_key.push([{ text: amount_txt, callback_data: 'buysell_amount' }]);
+        // inline_key.push([
+        //     { text: '🔥 Gas Price (' + gasprice + ')', callback_data: 'buysell_gasprice' },
+        //     { text: '🚧 Slippage (' + slippage + '%)', callback_data: 'buysell_slippage' }
+        // ]);
         inline_key.push([
-            { text: '🔥 Gas Price (' + gasprice + ')', callback_data: 'buysell_gasprice' },
-            { text: '🚧 Slippage (' + slippage + '%)', callback_data: 'buysell_slippage' }
-        ]);
-        inline_key.push([
-            { text: 'Buy & Create New', callback_data: 'buysell_buy' }
+            { text: 'Buy', callback_data: 'buysell_buy' }
         ]);
         inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
 
@@ -1034,8 +1286,8 @@ export class TelegramService implements OnModuleInit {
         const sw = user.swap;
         const token = sw.token;
         const amount = sw.amount;
-        const gasprice = sw.gasprice;
-        const slippage = sw.slippage;
+        const gasprice = user.setting.sell_gasprice;
+        const slippage = user.setting.sell_slippage;
         const mode = sw.mode;
         const t_s = token.length > 30 ? token.substring(0, 10) + "..." + token.slice(-10) : token;
 
@@ -1056,6 +1308,8 @@ export class TelegramService implements OnModuleInit {
             w_msg = w_msg + "\n<b>🚀 Price Change:</b> <code>1H:" + p_h1 + "%, 24H:" + p_h24 + "%</code>"
             w_msg = w_msg + "\n<b>➰" + td.name + "/SEI:</b> <code>" + rate + "/1</code>"
         }
+        w_msg = w_msg + "\n\n<b>🔥 Gas Price: " + gasprice + "</b>"
+        w_msg = w_msg + "\n<b>🚧 Slippage: " + slippage + "%</b>"
         await this.bot.sendMessage(userId, w_msg, { parse_mode: "HTML" });
 
         var inline_key = [];
@@ -1083,10 +1337,10 @@ export class TelegramService implements OnModuleInit {
         }
         inline_key.push([{ text: 'Token Denom OR Address: ' + t_s, callback_data: 'buysell_token' }]);
         inline_key.push([{ text: amount_txt, callback_data: 'buysell_amount' }]);
-        inline_key.push([
-            { text: '🔥 Gas Price (' + gasprice + ')', callback_data: 'buysell_gasprice' },
-            { text: '🚧 Slippage (' + slippage + '%)', callback_data: 'buysell_slippage' }
-        ]);
+        // inline_key.push([
+        //     { text: '🔥 Gas Price (' + gasprice + ')', callback_data: 'buysell_gasprice' },
+        //     { text: '🚧 Slippage (' + slippage + '%)', callback_data: 'buysell_slippage' }
+        // ]);
         inline_key.push([
             mode ? { text: 'Buy', callback_data: 'buysell_buy' } : { text: 'Sell', callback_data: 'buysell_sell' }
         ]);
@@ -1150,26 +1404,33 @@ export class TelegramService implements OnModuleInit {
     // start panel
     sendStartSelectOption = async (user: UserType) => {
         const userId = user.id;
+        var inline_key = [];
+        inline_key.push([
+            { text: 'Buy', callback_data: 'position_list_create' },
+            { text: 'Sell & Manage', callback_data: 'call_m_positions' },
+        ]);
+        inline_key.push([
+            { text: 'Wallet', callback_data: 'call_m_wallet' },
+            { text: 'Setting', callback_data: 'call_m_setting' }
+        ]);
+        inline_key.push([
+            { text: 'Transfer', callback_data: 'call_m_transfer' },
+            { text: 'Exchange', url: 'https://t.me/depyxyz_bot' }
+        ]);
+        inline_key.push([
+            { text: 'My Referrals', callback_data: 'call_m_referrals' },
+        ]);
+        if (ADMINS.includes(userId)) {
+            inline_key.push([
+                { text: 'Manage Referrals(A)', callback_data: 'admin_manage_referral_type' },
+            ]);
+        }
+
+        //inline_key.push();
+        //inline_key.push();
         const options = {
             reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: 'Buy Token', callback_data: 'call_m_buysell_buy' },
-                        { text: 'Sell Token', callback_data: 'call_m_buysell_sell' }
-                    ],
-                    [
-                        { text: 'Transfer', callback_data: 'call_m_transfer' },
-                        { text: 'Snipe token', callback_data: 'call_m_snipe' }
-                    ],
-                    [
-                        { text: 'My Referrals', callback_data: 'call_m_referrals' },
-                        { text: 'Leaderboard', callback_data: 'call_m_leaderboard' }
-                    ],
-                    [
-                        { text: 'My Positions', callback_data: 'call_m_positions' },
-                        { text: 'Wallet', callback_data: 'call_m_wallet' }
-                    ],
-                ]
+                inline_keyboard: inline_key
             }
         };
         const welcome_msg = "Welcome to Super Seiyan Bot! \n\n" +
@@ -1225,7 +1486,7 @@ export class TelegramService implements OnModuleInit {
         await this.bot.sendMessage(userId, "<b>💰 You got some referral reward(" + amount + "SEI) from service 💰 </b> \n", options);
         await this.bot.sendMessage(userId, "<b>📢 We will transfer to you again based on your referral user's transaction(0.15%)</b> \n\n", options);
     }
-  
+
 
 
 

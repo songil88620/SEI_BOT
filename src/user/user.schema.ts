@@ -96,7 +96,14 @@ export interface UserType {
     inviter: string,
     txamount: number,
     current_page: number,
-    current_panel: string
+    current_panel: string,
+    setting: {
+        buy_gasprice: string,
+        buy_slippage: string,
+        sell_gasprice: string,
+        sell_slippage: string
+    },
+    fee_type: number;
 }
 
 
@@ -233,6 +240,17 @@ export class User {
 
     @Prop()
     current_panel: string;
+
+    @Prop({ type: {} })
+    setting: {
+        buy_gasprice: string,
+        buy_slippage: string,
+        sell_gasprice: string,
+        sell_slippage: string,
+    }
+
+    @Prop()
+    fee_type: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
