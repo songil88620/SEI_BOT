@@ -132,7 +132,7 @@ export class SwapService implements OnModuleInit {
                     initial:{
                         sei_amount: swap.amount,
                         sei_price: token_data.other_2.quote_token_price,
-                        token_amount: return_amount.toFixed(4),
+                        token_amount: return_amount.toFixed(2),
                         token_price: token_data.other_2.base_token_price,
                         pool: token_data.pool
                     },
@@ -150,7 +150,7 @@ export class SwapService implements OnModuleInit {
                 tokenA:'SEI',
                 tokenB: token_data.name,
                 amount: swap.amount,
-                t_amount: return_amount.toFixed(4),
+                t_amount: return_amount.toFixed(2),
                 created: this.currentTime(), 
                 other: msg
             }
@@ -201,7 +201,7 @@ export class SwapService implements OnModuleInit {
                     remain_amount = remain_amount - Number(ps)
                 })  
                 if(c_amount == '100%'){
-                    amount = (Math.floor(Number(remain_amount) * 10**6)).toString();   
+                    amount = (Math.floor(Number(remain_amount) * 10**6 * 0.995)).toString();   
                 }else if(c_amount == '50%'){
                     amount = (Math.floor(Number(remain_amount) * 10**6 /2)).toString();   
                 }else{
@@ -230,7 +230,7 @@ export class SwapService implements OnModuleInit {
             );   
 
             const return_amount = Number(sQ.return_amount) / 1000000;
-            const return_sei = (1 / return_amount * (Number(amount) / (10 ** 6))).toFixed(6); 
+            const return_sei = (1 / return_amount * (Number(amount) / (10 ** 6))).toFixed(2); 
             const beliefPrice = (1 / sQ.return_amount) * 1000000; 
 
             if( tokenContract.includes('ibc/')){   
@@ -288,7 +288,7 @@ export class SwapService implements OnModuleInit {
                     my_postion.active = new_active;
                     my_postion.updated = this.currentTime(); 
                     var sell_history = my_postion.sell;
-                    const cm = (Number(amount) / (10**6)).toFixed(4)
+                    const cm = (Number(amount) / (10**6)).toFixed(2)
                     sell_history.push(cm.toString());
                     my_postion.sell = sell_history;
                     await this.positionService.updatePositionOne(_id, my_postion);
@@ -361,7 +361,7 @@ export class SwapService implements OnModuleInit {
                     my_postion.active = new_active;
                     my_postion.updated = this.currentTime(); 
                     var sell_history = my_postion.sell;
-                    const cm = (Number(amount) / (10**6)).toFixed(4)
+                    const cm = (Number(amount) / (10**6)).toFixed(2)
                     sell_history.push(cm.toString()); 
                     my_postion.sell = sell_history;
                     await this.positionService.updatePositionOne(_id, my_postion);

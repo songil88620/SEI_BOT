@@ -26,8 +26,9 @@ const TelegramBot = require('node-telegram-bot-api');
 
 
 const Commands = [
-    { command: 'start', description: 'Start the work' },
-    { command: 'help', description: 'Return help docs' },
+    { command: 'start', description: 'Start your SEI trading journey' },
+    { command: 'help', description: 'Send help please' },
+    { command: 'bots', description: 'Super Seiyan Botsss' },
 ];
 
 
@@ -40,6 +41,7 @@ export class TelegramService implements OnModuleInit {
     private logger = new Logger(TelegramService.name)
     private user: string[] = []
     private uc_tmp = {}
+    private uc_msg = {}
     private lastMsg: number = 0;
 
     private hotListForSwap = [];
@@ -99,6 +101,8 @@ export class TelegramService implements OnModuleInit {
             var user: UserType = await this.userService.findOne(id)
             const current_panel = user.current_panel;
 
+
+
             // main menu commands
             if (cmd.includes('call_m_')) {
                 if (cmd == 'call_m_wallet') {
@@ -141,11 +145,16 @@ export class TelegramService implements OnModuleInit {
 
                     await this.bot.sendMessage(id, "<b>Your referral link : </b><code>" + myName + "?start=_" + code + "</code>\n<b>Referral Users : " + referr_len + "</b>\n" + ref_msg, { parse_mode: "HTML" });
                     await this.sendStartSelectOption(user);
-                    await this.cleanrMessage(query.message.chat.id, msgid, 10)
+                    // await this.cleanrMessage(query.message.chat.id, msgid, 10)
                 }
 
                 if (cmd == 'call_m_positions') {
-                    await this.panel_postion_list(user)
+                    const postions: PositionType[] = await this.positionService.getMyPositions(id);
+                    if (postions.length > 0) {
+                        await this.panel_manage_position(user)
+                    } else {
+                        await this.panel_postion_list(user)
+                    }
                 }
 
                 if (cmd == 'call_m_setting') {
@@ -326,7 +335,7 @@ export class TelegramService implements OnModuleInit {
 
             // position list function
             if (cmd.includes('position_list_')) {
-                await this.bot.sendMessage(id, "<b>⏳ Processing requested, Waiting for data…</b>", { parse_mode: "HTML" });
+
                 if (cmd == 'position_list_sell') {
                     await this.panel_manage_position(user);
                 }
@@ -334,7 +343,10 @@ export class TelegramService implements OnModuleInit {
                     await this.panel_create_position(user);
                 }
                 if (cmd == 'position_list_refresh') {
-                    await this.panel_postion_list(user);
+                    const msg_id = this.uc_msg[user.id];
+                    const msg = await this.generate_pos_msg(user);
+                    const e_msg = await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
+                    this.uc_msg[user.id] = e_msg.message_id;
                 }
             }
 
@@ -348,6 +360,9 @@ export class TelegramService implements OnModuleInit {
                 };
                 if (cmd == 'pos_mng_prev') {
                     user.current_page = user.current_page - 1;
+                    // const msg_id = this.uc_tmp[user.id];
+                    // const msg = await this.generate_one_pos_msg(user);
+                    // await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
                     await this.panel_manage_position(user);
                     await this.userService.update(id, { current_page: user.current_page });
                 }
@@ -356,15 +371,20 @@ export class TelegramService implements OnModuleInit {
                 }
                 if (cmd == 'pos_mng_next') {
                     user.current_page = user.current_page + 1;
-                    await this.userService.update(id, { current_page: user.current_page });
+                    // const msg_id = this.uc_tmp[user.id];
+                    // const msg = await this.generate_one_pos_msg(user);
+                    // await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
                     await this.panel_manage_position(user);
+                    await this.userService.update(id, { current_page: user.current_page });
                 }
                 if (cmd == 'pos_mng_sellall') {
+                    this.uc_tmp[id] = 'pos_sell';
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '100%');
 
                 }
                 if (cmd == 'pos_mng_sellhal') {
+                    this.uc_tmp[id] = 'pos_sell';
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '50%');
 
@@ -374,7 +394,11 @@ export class TelegramService implements OnModuleInit {
                     await this.bot.sendMessage(id, "<b>Sell X(position)</b>", options);
                 }
                 if (cmd == 'pos_mng_refresh') {
-                    await this.panel_manage_position(user);
+                    // await this.panel_manage_position(user); 
+                    const msg_id = this.uc_msg[user.id];
+                    const msg = await this.generate_one_pos_msg(user);
+                    const e_msg = await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
+                    this.uc_msg[user.id] = e_msg.message_id;
                 }
                 if (cmd == 'pos_mng_remove') {
                     const pid = this.uc_tmp[id]['_id'];
@@ -428,22 +452,19 @@ export class TelegramService implements OnModuleInit {
             }
 
 
-
-
-
             // to back menu
             if (cmd == "to_start") {
 
                 if (current_panel == PANELS.P_POSITION_CREATE) {
                     await this.sendStartSelectOption(user)
                 } else if (current_panel == PANELS.P_POSITION_MANAGE) {
-                    await this.panel_postion_list(user)
+                    await this.sendStartSelectOption(user)
                 } else {
                     await this.sendStartSelectOption(user)
                 }
             }
 
-            await this.cleanrMessage(id, msgid, 10)
+            // await this.cleanrMessage(id, msgid, 10)
             return;
         } catch (error) {
             console.log(">>>Error")
@@ -459,8 +480,6 @@ export class TelegramService implements OnModuleInit {
             const message = msg.text;
             const userid: string = msg.from.id
             const reply_msg = msg.reply_to_message?.text;
-            console.log(">>>>MGS", message)
-
 
             // this.bot.deleteMessage(msg.chat.id, msg.message_id)
             //     .then(() => {
@@ -612,6 +631,31 @@ export class TelegramService implements OnModuleInit {
             // return start menu
             if (message == '/start') {
                 await this.sendStartSelectOption(user);
+            }
+
+            // help
+            if (message == '/help') {
+                const options = {
+                    parse_mode: "HTML"
+                };
+                const msg = "For more Bot details and guide, please visit\n" + 
+                            "https://docs.superseiyan.io\n"+
+                            "Join our official channel now\n" +
+                            "https://t.me/superseiyanchannel"
+                await this.bot.sendMessage(id, msg, options);
+            }
+
+            //bots
+            if(message == '/bots'){
+                const options = {
+                    parse_mode: "HTML"
+                };
+                const msg = "Bots message- \n\n"+
+                            "Find the best for that give you ultra instinct! You can still access to\n"+
+                            "you wallet with different bots, you can use anyone of them anytime!\n\n" + 
+                            "https://t.me/SSeiyan_Bot\n"+
+                            "https://t.me/VSeiyan_Bot\n"  
+                await this.bot.sendMessage(id, msg, options);
             }
 
 
@@ -837,6 +881,7 @@ export class TelegramService implements OnModuleInit {
                     };
                     await this.bot.sendMessage(userid, "<b>Sell X(position)</b>", options);
                 } else {
+                    this.uc_tmp[id] = 'pos_sell';
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, message);
                 }
@@ -976,7 +1021,7 @@ export class TelegramService implements OnModuleInit {
                 }
             }
 
-            await this.cleanrMessage(id, msgid, 10)
+            // await this.cleanrMessage(id, msgid, 10)
             return;
         } catch (e) {
             console.log(">>e", e)
@@ -1040,36 +1085,50 @@ export class TelegramService implements OnModuleInit {
         return;
     }
 
+    generate_one_pos_msg = async (user: UserType) => {
+        const userId = user.id
+        const page = user.current_page;
+        const p: { position: PositionType, len: number } = await this.positionService.getMyPositionOne(userId, page)
+        const position: PositionType = p.position;
+        this.uc_tmp[userId] = position;
+        const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
+        const used_m = Number(position.initial.sei_amount) * Number(position.initial.sei_price);
+        const curt_m = Number(position.initial.token_amount) * Number(recent_token_data.other_2.base_token_price);
+        const profit_m = curt_m - used_m;
+        const profit_m_vs_sei = (profit_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+        const profit_m_percent = ((profit_m / used_m) * 100).toFixed(2);
+        const initial_sei = Number(position.initial.sei_amount).toFixed(5);
+        const a_token_vs_sei = (Number(recent_token_data.other_2.base_token_price) / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
+        var bs = Number(position.initial.token_amount);
+        position.sell.forEach((ps) => {
+            bs = bs - Number(ps)
+        })
+        const balance_token = Number(bs).toFixed(5) + " $" + position.name + "/" + (curt_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5) + ' SEI/ $' + (curt_m).toFixed(5);
+        const mcap = (Number(recent_token_data.other_2.cap) * Number(recent_token_data.other_2.base_token_price)).toFixed(5) + "/ $" + recent_token_data.other_2.base_token_price;
+        const ts = Date.now();
+        var pos_msg =
+            "<b>" + position.name + "</b>\n" +
+            "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+            "Initial: <b>" + initial_sei + " SEI</b>\n" +
+            "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
+            "Balance: <b>" + balance_token + "</b>\n" +
+            "Market Cap: <b>$" + mcap + "</b>\n\n" +
+            "Time: <b>" + ts + "</b>\n"
+
+        return pos_msg;
+    }
+
     panel_manage_position = async (user: UserType) => {
         try {
             const userId = user.id
             const page = user.current_page;
             const p: { position: PositionType, len: number } = await this.positionService.getMyPositionOne(userId, page)
             const position: PositionType = p.position;
-            this.uc_tmp[userId] = position;
-            const recent_token_data: PairType = this.swapService.getTokenData(position.denom);
-            const used_m = Number(position.initial.sei_amount) * Number(position.initial.sei_price);
-            const curt_m = Number(position.initial.token_amount) * Number(recent_token_data.other_2.base_token_price);
-            const profit_m = curt_m - used_m;
-            const profit_m_vs_sei = (profit_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
-            const profit_m_percent = ((profit_m / used_m) * 100).toFixed(2);
-            const initial_sei = Number(position.initial.sei_amount).toFixed(5);
-            const a_token_vs_sei = (Number(recent_token_data.other_2.base_token_price) / Number(recent_token_data.other_2.quote_token_price)).toFixed(5);
-            var bs = Number(position.initial.token_amount);
-            position.sell.forEach((ps) => {
-                bs = bs - Number(ps)
-            })
-            const balance_token = Number(bs).toFixed(5) + " $" + position.name + "/" + (curt_m / Number(recent_token_data.other_2.quote_token_price)).toFixed(5) + ' SEI/ $' + (curt_m).toFixed(5);
-            const mcap = (Number(recent_token_data.other_2.cap) * Number(recent_token_data.other_2.base_token_price)).toFixed(5) + "/ $" + recent_token_data.other_2.base_token_price;
 
-            var pos_msg =
-                "<b>" + position.name + "</b>\n" +
-                "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
-                "Initial: <b>" + initial_sei + " SEI</b>\n" +
-                "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
-                "Balance: <b>" + balance_token + "</b>\n" +
-                "Market Cap: <b>$" + mcap + "</b>\n\n";
-            await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
+            const pos_msg = await this.generate_one_pos_msg(user);
+
+            const msg = await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
+            this.uc_msg[userId] = msg.message_id;
 
             var inline_key = [];
             inline_key.push([
@@ -1106,7 +1165,7 @@ export class TelegramService implements OnModuleInit {
         }
     }
 
-    panel_postion_list = async (user: UserType) => {
+    generate_pos_msg = async (user: UserType) => {
         const userId = user.id;
         const postions: PositionType[] = await this.positionService.getMyPositions(userId)
         var idx = 0;
@@ -1145,8 +1204,15 @@ export class TelegramService implements OnModuleInit {
         pos_msg = pos_msg + "\n" +
             "Wallet Balance: <b>" + sei_balance + " SEI</b>";
 
+        return pos_msg;
+    }
 
-        await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });
+    panel_postion_list = async (user: UserType) => {
+        const userId = user.id;
+        const postions: PositionType[] = await this.positionService.getMyPositions(userId)
+        const pos_mng = await this.generate_pos_msg(user);
+        const msg = await this.bot.sendMessage(userId, pos_mng, { parse_mode: "HTML" });
+        this.uc_msg[userId] = msg.message_id;
 
         var inline_key = [];
         postions.length > 0 && inline_key.push([{ text: '📈 Sell & Manage ', callback_data: 'position_list_sell' }]);
@@ -1422,7 +1488,7 @@ export class TelegramService implements OnModuleInit {
         ]);
         if (ADMINS.includes(userId)) {
             inline_key.push([
-                { text: 'Manage Referrals(A)', callback_data: 'admin_manage_referral_type' },
+                { text: 'Manage Reward Fee', callback_data: 'admin_manage_referral_type' },
             ]);
         }
 
@@ -1473,6 +1539,8 @@ export class TelegramService implements OnModuleInit {
             await this.panel_transfer(user)
         } else if (current_panel == PANELS.P_POSITION_CREATE) {
             await this.panel_create_position(user)
+        } else if (current_panel == PANELS.P_POSITION_MANAGE) {
+            await this.panel_postion_list(user)
         } else {
 
         }
@@ -1481,10 +1549,10 @@ export class TelegramService implements OnModuleInit {
     }
 
     referralRewardMsg = async (userId: string, amount: string) => {
-        const options = { parse_mode: "HTML" };
-        await this.bot.sendMessage(userId, "<b>✨✨✨ Congrateration! ✨✨✨</b>\n", options);
-        await this.bot.sendMessage(userId, "<b>💰 You got some referral reward(" + amount + "SEI) from service 💰 </b> \n", options);
-        await this.bot.sendMessage(userId, "<b>📢 We will transfer to you again based on your referral user's transaction(0.15%)</b> \n\n", options);
+       // const options = { parse_mode: "HTML" };
+       // await this.bot.sendMessage(userId, "<b>✨✨✨ Congrateration! ✨✨✨</b>\n", options);
+       // await this.bot.sendMessage(userId, "<b>💰 You got some referral reward(" + amount + "SEI) from service 💰 </b> \n", options);
+       // await this.bot.sendMessage(userId, "<b>📢 We will transfer to you again based on your referral user's transaction(0.15%)</b> \n\n", options);
     }
 
 
