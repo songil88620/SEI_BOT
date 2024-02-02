@@ -378,13 +378,11 @@ export class TelegramService implements OnModuleInit {
                     await this.userService.update(id, { current_page: user.current_page });
                 }
                 if (cmd == 'pos_mng_sellall') {
-                    this.uc_tmp[id] = 'pos_sell';
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '100%');
 
                 }
                 if (cmd == 'pos_mng_sellhal') {
-                    this.uc_tmp[id] = 'pos_sell';
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '50%');
 
@@ -880,8 +878,7 @@ export class TelegramService implements OnModuleInit {
                         parse_mode: "HTML"
                     };
                     await this.bot.sendMessage(userid, "<b>Sell X(position)</b>", options);
-                } else {
-                    this.uc_tmp[id] = 'pos_sell';
+                } else { 
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, message);
                 }
@@ -1499,16 +1496,18 @@ export class TelegramService implements OnModuleInit {
                 inline_keyboard: inline_key
             }
         };
-        const welcome_msg = "Welcome to Super Seiyan Bot! \n\n" +
-            "The God Speed telegram trading bot on SEI Network, trade any CW-20 tokens now.\n\n" +
-            "🔥 Start Guide 🔥\n" +
-            "Create wallet by tapping Wallet button, fund your wallet with SEI token\n" +
-            "(If you don't have SEI token, you can use Exchange button to swap any token to SEI)\n\n" +
-            "⚡️ Trade ⚡️\n" +
-            "Tap Buy button and pre-set your trading setting, select any token on Hot list or Paste token address, Tap Buy with SEI, DONE! \n\n" +
-            "💰 Rewards >\n" +
-            "Tap Referral to start invite your friend to trade, you can earn up to 30% referral volume fees from our program! *Leaderboard coming soon*\n\n" +
-            "SUPER SEIYAN MODE ON 🟢\n";
+        const welcome_msg = "Welcome to Super Seiyan Bot! \n\n" + 
+            "🔥 Start Guide \n" +
+            "Tap Wallet to create a new wallet and deposit SEI to get start!\n\n" +
+            "🛠 Setting  \n" +
+            "Tap Setting to preset your Buy & Sell setting, minimum 0.5 Gas and 0.5% Slippage. 0.5 Gas = 0.05 SEI\n\n" + 
+            "⚡️ Trade \n" +
+            "Paste Token address, set SEI amount, Buy!  \n\n" +
+            "💰 Rewards \n" +
+            "Tap Referral to start invite your friend to trade, you can earn up to 30% referral volume fees from our program!\n\n" +
+            "🧬 Exchange \n" +
+            "Tap Exchange to bridge swap any token from any chain to SEI\n\n" +
+            "Ultra Instinct Trading Bot on SEI Network\n";
         await this.bot.sendMessage(userId, welcome_msg, options);
         return;
     }

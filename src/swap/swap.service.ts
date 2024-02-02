@@ -209,6 +209,7 @@ export class SwapService implements OnModuleInit {
                 } 
                 pairContract = my_postion.initial.pool;
                 tokenContract = my_postion.denom;
+            
             }    
 
             const fee = calculateFee(1000000 * Number(setting.sell_gasprice), "0.1usei");
