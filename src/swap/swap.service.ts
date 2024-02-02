@@ -401,8 +401,10 @@ export class SwapService implements OnModuleInit {
             const denom = mode == ACTIONS.TRANSFER? user.transfer.token:'usei';     
 
             if (Number(a_m) <= 0 || recipient == "") {
-                const msg = "You didn't set amount or recipient address, please check again.";
-                await this.telegramService.transactionResponse(user, msg, 300);
+                if(mode == ACTIONS.TRANSFER){
+                    const msg = "You didn't set amount or recipient address, please check again.";
+                    await this.telegramService.transactionResponse(user, msg, 300);
+                }                
                 return
             }
 

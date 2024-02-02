@@ -1539,7 +1539,7 @@ export class TelegramService implements OnModuleInit {
         } else if (current_panel == PANELS.P_POSITION_CREATE) {
             await this.panel_create_position(user)
         } else if (current_panel == PANELS.P_POSITION_MANAGE) {
-            await this.panel_postion_list(user)
+            // await this.panel_postion_list(user)
         } else {
 
         }
