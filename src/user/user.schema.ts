@@ -104,6 +104,7 @@ export interface UserType {
         sell_slippage: string
     },
     fee_type: number;
+    claim_amount: number;
 }
 
 
@@ -251,6 +252,9 @@ export class User {
 
     @Prop()
     fee_type: number;
+    
+    @Prop()
+    claim_amount: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

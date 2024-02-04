@@ -10,7 +10,7 @@ import { LCDClient, MnemonicKey, MsgExecuteContract, Coins, Fee } from '@terra-m
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LogService } from 'src/log/log.service';
 import { PairService } from 'src/pair/pair.service'; 
-import { ADMIN_ADDRESS, CHAIN_ID, REST_URL, RPC_URL } from 'src/constant';
+import { ADMIN_ADDRESS, ADMIN_SEED, CHAIN_ID, REST_URL, RPC_URL, brandId } from 'src/constant';
 import { BotService } from 'src/bot/bot.service';
 import { UserService } from 'src/user/user.service';
 import { TelegramService } from 'src/telegram/telegram.service';
@@ -121,8 +121,11 @@ export class SwapService implements OnModuleInit {
                 undefined,  
                 [{ denom: "usei", amount: amount }]
             );   
+            console.log(">>>>>>BUY...", result)
             const gasused = result.gasUsed;
             const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
+
+
 
             if(mode == ACTIONS.CREATE_POSTION){  
                 const new_pos = {
@@ -152,23 +155,26 @@ export class SwapService implements OnModuleInit {
                 amount: swap.amount,
                 t_amount: return_amount.toFixed(2),
                 created: this.currentTime(), 
-                other: msg
+                other: brandId
             }
             this.logService.create(log)
 
-            // amount ----- fee cut ---------------
+
+            const fee_amount = (Number(swap.amount) / 100).toString();
+            await this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS}) 
             if(user.inviter){
                 const inviter = await this.userService.getInviterAdrs(user.inviter);
-                const fee_inviter = inviter.fee_type;
-                const fee_admin = 100 - fee_inviter;
-                const fee_amount_admin = (Number(swap.amount) * fee_admin / 10000).toString();
-                const fee_amount_inviter = (Number(swap.amount) * fee_inviter / 10000).toString();   
-                this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
-                this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id: inviter.id, address:inviter.address}); 
-            }else{
-                const fee_amount = (Number(swap.amount) / 100).toString();
-                this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})
+                const fee_inviter = inviter.fee_type;  
+                const fee_amount_inviter = Number(swap.amount) * fee_inviter / 10000;    
+                this.transferClaim(inviter.id, fee_amount_inviter); 
             } 
+            if(brandId != ""){
+                const brander = await this.userService.getInviterAdrs(brandId);
+                const fee_brander = brander.fee_type;  
+                const fee_amount_brander = Number(swap.amount) * fee_brander / 10000;     
+                this.transferClaim(brander.id, fee_amount_brander); 
+            }
+
         }catch(e){
             await this.telegramService.transactionResponse(user, e.message, 400);
         }   
@@ -256,6 +262,7 @@ export class SwapService implements OnModuleInit {
                     undefined,
                     [{ denom: tokenContract, amount: amount }]
                 ); 
+
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
                 await this.telegramService.transactionResponse(user, msg, 200); 
@@ -268,7 +275,7 @@ export class SwapService implements OnModuleInit {
                     amount: return_sei,
                     t_amount: swap.amount,
                     created: this.currentTime(), 
-                    other: msg
+                    other: brandId
                 }
                 this.logService.create(log)
                 if(mode == ACTIONS.POSITION_SELL){
@@ -295,19 +302,22 @@ export class SwapService implements OnModuleInit {
                     await this.positionService.updatePositionOne(_id, my_postion);
                     await this.telegramService.panel_postion_list(user);
                 }
-                // return_sei ---- fee cut ---- 
+
+                const fee_amount = (Number(return_sei) / 100).toString();
+                await this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})   
                 if(user.inviter){
                     const inviter = await this.userService.getInviterAdrs(user.inviter);
-                    const fee_inviter = inviter.fee_type;
-                    const fee_admin = 100 - fee_inviter;
-                    const fee_amount_admin = (Number(return_sei) * fee_admin / 10000).toString();
-                    const fee_amount_inviter = (Number(return_sei) * fee_inviter / 10000).toString();     
-                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
-                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id:inviter.id, address:inviter.address}); 
-                }else{
-                    const fee_amount = (Number(return_sei) / 100).toString();
-                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})
+                    const fee_inviter = inviter.fee_type;  
+                    const fee_amount_inviter = Number(return_sei) * fee_inviter / 10000;    
+                    this.transferClaim(inviter.id, fee_amount_inviter); 
                 } 
+                if(brandId != ""){
+                    const brander = await this.userService.getInviterAdrs(brandId);
+                    const fee_brander = brander.fee_type;  
+                    const fee_amount_brander = Number(return_sei) * fee_brander / 10000;     
+                    this.transferClaim(brander.id, fee_amount_brander); 
+                }
+                
             } else{    
                 const swapMsg = {
                     "send": {
@@ -329,6 +339,7 @@ export class SwapService implements OnModuleInit {
                     fee,  
                     undefined,   
                 );
+                console.log(">>>>SELL", result)
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
                 await this.telegramService.transactionResponse(user, msg, 200); 
@@ -341,7 +352,7 @@ export class SwapService implements OnModuleInit {
                     amount: return_sei,
                     t_amount: swap.amount,
                     created: this.currentTime(), 
-                    other: msg
+                    other: brandId
                 }
                 this.logService.create(log)
                 if(mode == ACTIONS.POSITION_SELL){
@@ -368,19 +379,21 @@ export class SwapService implements OnModuleInit {
                     await this.positionService.updatePositionOne(_id, my_postion);
                     await this.telegramService.panel_postion_list(user);
                 }
-                // return_sei ---- fee cut ----
+
+                const fee_amount = (Number(return_sei) / 100).toString();
+                await this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})   
                 if(user.inviter){
                     const inviter = await this.userService.getInviterAdrs(user.inviter);
-                    const fee_inviter = inviter.fee_type;
-                    const fee_admin = 100 - fee_inviter;
-                    const fee_amount_admin = (Number(return_sei) * fee_admin / 10000).toString();
-                    const fee_amount_inviter = (Number(return_sei) * fee_inviter / 10000).toString(); 
-                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_admin, {id:'', address:ADMIN_ADDRESS});
-                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount_inviter, {id:inviter.id, address:inviter.address}); 
-                }else{
-                    const fee_amount = (Number(return_sei) / 100).toString();
-                    this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS})
-                }  
+                    const fee_inviter = inviter.fee_type;  
+                    const fee_amount_inviter = Number(return_sei) * fee_inviter / 10000;    
+                    this.transferClaim(inviter.id, fee_amount_inviter); 
+                } 
+                if(brandId != ""){
+                    const brander = await this.userService.getInviterAdrs(brandId);
+                    const fee_brander = brander.fee_type;  
+                    const fee_amount_brander = Number(return_sei) * fee_brander / 10000;     
+                    this.transferClaim(brander.id, fee_amount_brander); 
+                }
             }   
         }catch(e){ 
             console.log(">>ERRO ", e)
@@ -455,7 +468,7 @@ export class SwapService implements OnModuleInit {
                     amount: user.transfer.amount,
                     t_amount: "",
                     created: this.currentTime(), 
-                    other: msg
+                    other: brandId
                 }
                 this.logService.create(log) 
             }  
@@ -464,6 +477,29 @@ export class SwapService implements OnModuleInit {
                 await this.telegramService.transactionResponse(user, e.message, 400);
             } 
             console.log(">>err", e)
+        }
+    }
+
+    transferClaim = async (id:string, amounts: number) => {
+        const claimer = await this.userService.findOne(id);
+        const claim_amount = claimer.claim_amount;
+        if(0.1 <= (claim_amount + amounts)){
+            const wallet = await restoreWallet(ADMIN_SEED);
+            const [firstAccount] = await wallet.getAccounts();  
+            const a_m = (Math.floor(Number(claim_amount + amounts) * 10 ** 6)).toString()  
+            const recipient = claimer.wallet.address;
+            const denom =  'usei'; 
+            const fee = calculateFee(100000, "0.1usei");
+            const signingClient = await getSigningClient(RPC_URL, wallet);
+            const amount = {
+                denom: denom,
+                amount: a_m,
+            };
+            const result = await signingClient.sendTokens(firstAccount.address, recipient, [amount], fee);   
+            await this.userService.update(id, {claim_amount: 0});
+        }else{
+            const new_amount = claim_amount + amounts;
+            await this.userService.update(id, {claim_amount:new_amount});
         }
     }
 

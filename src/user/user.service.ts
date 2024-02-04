@@ -70,6 +70,10 @@ export class UserService {
     return users.length;
   }
 
+  async setClaim(id: string, claim: number) {
+    return await this.model.findOneAndUpdate({ id: id }, { claim: claim }, { new: true }).exec()
+  }
+
 
 
   // yet not used

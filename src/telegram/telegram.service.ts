@@ -329,7 +329,7 @@ export class TelegramService implements OnModuleInit {
                 if (cmd == 'transfer_send') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     await this.swapService.transfer_token(user, ACTIONS.TRANSFER, '0', { id: '', address: '' });
-                    await this.panel_transfer(user);
+                    // await this.panel_transfer(user);
                 }
             }
 
@@ -1458,7 +1458,7 @@ export class TelegramService implements OnModuleInit {
             }
         };
         await this.bot.sendMessage(userId, 'Setting for token transfer', options);
-        await this.userService.update(userId, { current_panel: PANELS.P_SWAP });
+        await this.userService.update(userId, { current_panel: PANELS.P_TRANSFER });
         return;
     }
 
