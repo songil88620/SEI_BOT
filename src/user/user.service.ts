@@ -13,8 +13,33 @@ export class UserService {
   ) { }
 
   async onModuleInit() {
+    return
     try {
-
+      const users = await this.model.find();
+      for (var user of users) {
+        var isNewField = false;
+        if (!user.fee_type) {
+          user.fee_type = 10;
+          isNewField = true;
+        }
+        if (!user.claim_amount) {
+          user.claim_amount = 0;
+          isNewField = true;
+        }
+        if (!user.autotrade) {
+          user.autotrade = {
+            buy_amount: '0',
+            buy_price: '0',
+            sell_price: '0',
+            sell_amount: '0',
+            token: ''
+          }
+          isNewField = true;
+        }
+        if (isNewField) {
+          await this.model.findOneAndUpdate({ _id: user._id }, user)
+        }
+      }
     } catch (e) {
 
     }

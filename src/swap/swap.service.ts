@@ -120,12 +120,9 @@ export class SwapService implements OnModuleInit {
                 fee,  
                 undefined,  
                 [{ denom: "usei", amount: amount }]
-            );   
-            console.log(">>>>>>BUY...", result)
+            );    
             const gasused = result.gasUsed;
-            const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-
-
+            const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;  
 
             if(mode == ACTIONS.CREATE_POSTION){  
                 const new_pos = {
@@ -525,6 +522,7 @@ export class SwapService implements OnModuleInit {
                 return 0;
             }            
         }catch(e){
+            console.log(">>www", e)
             return 0;
         }
     }

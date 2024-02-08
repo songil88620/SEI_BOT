@@ -105,6 +105,13 @@ export interface UserType {
     },
     fee_type: number;
     claim_amount: number;
+    autotrade: {
+        token: string,
+        buy_amount: string,
+        buy_price: string,
+        sell_amount: string,
+        sell_price: string,
+    };
 }
 
 
@@ -252,9 +259,19 @@ export class User {
 
     @Prop()
     fee_type: number;
-    
+
     @Prop()
     claim_amount: number;
+
+    @Prop({ type: {} })
+    autotrade: {
+        token: string,
+        buy_amount: string,
+        buy_price: string,
+        sell_amount: string,
+        sell_price: string,
+    };
+
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

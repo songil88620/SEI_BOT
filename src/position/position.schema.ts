@@ -15,7 +15,14 @@ export interface PositionType {
     },
     updated: string,
     active: boolean,
-    sell: string[]
+    sell: string[],
+    auto?: {
+        buy_amount: string,
+        buy_price: string,
+        sell_amount: string,
+        sell_price: string,
+    },
+    auto_active?: boolean;
 }
 
 
@@ -51,6 +58,17 @@ export class Position {
 
     @Prop()
     sell: string[];
+
+    @Prop({ type: {} })
+    auto?: {
+        buy_amount: string,
+        buy_price: string,
+        sell_amount: string,
+        sell_price: string,
+    };
+
+    @Prop()
+    auto_active?: boolean;
 
 }
 
