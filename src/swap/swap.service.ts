@@ -37,7 +37,7 @@ export class SwapService implements OnModuleInit {
 
     async onModuleInit() {
         try{
-            await this.updateTokenList()
+            
         }catch(e){
             
         }
@@ -45,26 +45,27 @@ export class SwapService implements OnModuleInit {
 
     @Cron(CronExpression.EVERY_5_MINUTES, { name: 'token_list_bot' })
     async tokenListBot() {
-        await this.updateTokenList();
+        // await this.updateTokenList();
     }
 
     getTokenData = (denom:string) => {
-        return this.tokenList.find((t)=>t.denom == denom); 
-    }
+        return this.pairService.tokenList.find((t)=>t.denom == denom); 
+    } 
+     
 
-    updateTokenList = async () => {
-        const all = await this.pairService.findAll();
-        const sei = { name: "SEI", denom: "usei", decimal: 6 };
-        this.tokenList = [sei, ...all]
-    }   
-
-    buy_token = async(user: UserType, mode:string) => { 
+    buy_token = async(user: UserType, mode:string, other:any) => { 
         try{  
             const userid = user.id;
             const swap = user.swap;  
             const setting = user.setting;
-            const token_data = this.tokenList.find((t)=>t.denom == swap.token);    
-            
+            var swap_amount = swap.amount;
+            var swap_token = swap.token; 
+            if(mode == ACTIONS.AUTOBUY){
+                const auto_pos:PositionType = other;
+                swap_amount = auto_pos.auto.buy_amount;
+                swap_token = auto_pos.denom;
+            } 
+            const token_data = this.pairService.tokenList.find((t)=>t.denom == swap_token);     
             const rpc = RPC_URL;
             const mnemonic = user.wallet.key; 
             const wallet = await restoreWallet(mnemonic);
@@ -74,10 +75,10 @@ export class SwapService implements OnModuleInit {
                 rpc,
                 wallet,
             );
-            const amount = (Number(swap.amount) * 10**6).toString(); 
+            const amount = (Number(swap_amount) * 10**6).toString(); 
             const slippage = (Number(setting.buy_slippage) / 100).toString();
             const sei_balance = await this.getSeiBalance(user);
-            if(sei_balance < Number(swap.amount)){
+            if(sei_balance < Number(swap_amount)){
                 await this.telegramService.transactionResponse(user, 'Low balance, charge you SEI balance', 301);
                 return;
             }
@@ -97,7 +98,7 @@ export class SwapService implements OnModuleInit {
                     }
                 }
             );  
-            const return_amount = Number(sQ.return_amount) / 1000000 * Number(swap.amount); 
+            const return_amount = Number(sQ.return_amount) / 1000000 * Number(swap_amount); 
             const swapMsg = {
                 "swap": {
                     "max_spread":slippage,
@@ -120,7 +121,15 @@ export class SwapService implements OnModuleInit {
                 fee,  
                 undefined,  
                 [{ denom: "usei", amount: amount }]
-            );    
+            );   
+
+            if(mode == ACTIONS.AUTOBUY){ 
+                var auto_pos:PositionType = other;
+                auto_pos.initial.token_amount = return_amount.toFixed(2);
+                auto_pos.updated = this.currentTime();
+                this.positionService.updatePositionOne(auto_pos['_id'], auto_pos)
+            }
+
             const gasused = result.gasUsed;
             const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;  
 
@@ -128,9 +137,9 @@ export class SwapService implements OnModuleInit {
                 const new_pos = {
                     user_id: userid, 
                     name: token_data.name,
-                    denom: swap.token,
+                    denom: swap_token,
                     initial:{
-                        sei_amount: swap.amount,
+                        sei_amount: swap_amount,
                         sei_price: token_data.other_2.quote_token_price,
                         token_amount: return_amount.toFixed(2),
                         token_price: token_data.other_2.base_token_price,
@@ -141,15 +150,17 @@ export class SwapService implements OnModuleInit {
                 } 
                 await this.positionService.createNewOne(new_pos);  
             }    
-
-            await this.telegramService.transactionResponse(user, msg, 200);
+            if(mode != ACTIONS.AUTOBUY){ 
+                await this.telegramService.transactionResponse(user, msg, 200);
+            }
+            
             const log = {
                 id: userid, 
                 hash: result.transactionHash, 
                 mode:mode,
                 tokenA:'SEI',
                 tokenB: token_data.name,
-                amount: swap.amount,
+                amount: swap_amount,
                 t_amount: return_amount.toFixed(2),
                 created: this.currentTime(), 
                 other: brandId
@@ -157,32 +168,45 @@ export class SwapService implements OnModuleInit {
             this.logService.create(log)
 
 
-            const fee_amount = (Number(swap.amount) / 100).toString();
+            const fee_amount = (Number(swap_amount) / 100).toString();
             await this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS}) 
             if(user.inviter){
                 const inviter = await this.userService.getInviterAdrs(user.inviter);
                 const fee_inviter = inviter.fee_type;  
-                const fee_amount_inviter = Number(swap.amount) * fee_inviter / 10000;    
+                const fee_amount_inviter = Number(swap_amount) * fee_inviter / 10000;    
                 this.transferClaim(inviter.id, fee_amount_inviter); 
             } 
             if(brandId != ""){
                 const brander = await this.userService.getInviterAdrs(brandId);
                 const fee_brander = brander.fee_type;  
-                const fee_amount_brander = Number(swap.amount) * fee_brander / 10000;     
+                const fee_amount_brander = Number(swap_amount) * fee_brander / 10000;     
                 this.transferClaim(brander.id, fee_amount_brander); 
             }
 
         }catch(e){
-            await this.telegramService.transactionResponse(user, e.message, 400);
+            if(mode == ACTIONS.AUTOBUY){ 
+                var auto_pos:PositionType = other;
+                auto_pos.auto.status = 0;
+                this.positionService.updateOneAutoPostion(auto_pos);
+            } else{
+                await this.telegramService.transactionResponse(user, e.message, 400);                
+            }
         }   
     }  
 
-    sell_token = async (user: UserType, mode:string, c_amount:string) => {  
+    sell_token = async (user: UserType, mode:string, c_amount:string, other:any) => {  
         try{
             const userid = user.id; 
             const swap = user.swap;  
+            var swap_amount = swap.amount;
+            var swap_token = swap.token;
+            if(mode == ACTIONS.AUTOSELL){
+                const auto_pos:PositionType = other;
+                swap_amount = (Number(auto_pos.initial.token_amount) * Number(auto_pos.auto.sell_amount) * 0.995 / 100).toFixed(4).toString();
+                swap_token = auto_pos.denom;
+            } 
             const setting = user.setting;
-            const token_data = this.tokenList.find((t)=>t.denom == swap.token); 
+            const token_data = this.pairService.tokenList.find((t)=>t.denom == swap_token); 
             const rpc = RPC_URL;
             const mnemonic = user.wallet.key; 
             const wallet = await restoreWallet(mnemonic);
@@ -192,7 +216,7 @@ export class SwapService implements OnModuleInit {
                 rpc,
                 wallet,
             );
-            var amount = (Math.floor(Number(swap.amount) * 10**6)).toString();   
+            var amount = (Math.floor(Number(swap_amount) * 10**6)).toString();   
             const slippage = (Number(setting.sell_slippage) / 100).toString();
             var pairContract = token_data.pool;
             var tokenContract = token_data.denom; 
@@ -259,10 +283,24 @@ export class SwapService implements OnModuleInit {
                     undefined,
                     [{ denom: tokenContract, amount: amount }]
                 ); 
-
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-                await this.telegramService.transactionResponse(user, msg, 200); 
+                if(mode == ACTIONS.AUTOSELL){
+                    const my_postion:PositionType = other;
+                    var remain_amount = (Number(my_postion.initial.token_amount))*(100 - Number(my_postion.auto.sell_amount)) / 100; 
+                    var sell_history = my_postion.sell;
+                    const cm = (Number(amount) / (10**6)).toFixed(2);
+                    sell_history.push(cm.toString());
+                    if(my_postion.auto.sell_amount == '100'){
+                        my_postion.active = false;
+                    }else{
+                        my_postion.active = true;
+                    }
+                    my_postion.auto_active = false;
+                    this.positionService.updatePositionOne(my_postion['_id'], my_postion);
+                }else{
+                    await this.telegramService.transactionResponse(user, msg, 200); 
+                }   
                 const log = {
                     id: userid, 
                     hash: result.transactionHash, 
@@ -270,7 +308,7 @@ export class SwapService implements OnModuleInit {
                     tokenA: token_data.name,
                     tokenB: 'SEI',
                     amount: return_sei,
-                    t_amount: swap.amount,
+                    t_amount: swap_amount,
                     created: this.currentTime(), 
                     other: brandId
                 }
@@ -339,7 +377,22 @@ export class SwapService implements OnModuleInit {
                 console.log(">>>>SELL", result)
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-                await this.telegramService.transactionResponse(user, msg, 200); 
+                if(mode == ACTIONS.AUTOSELL){
+                    const my_postion:PositionType = other;
+                    var remain_amount = (Number(my_postion.initial.token_amount))*(100 - Number(my_postion.auto.sell_amount)) / 100; 
+                    var sell_history = my_postion.sell;
+                    const cm = (Number(amount) / (10**6)).toFixed(2);
+                    sell_history.push(cm.toString());
+                    if(my_postion.auto.sell_amount == '100'){
+                        my_postion.active = false;
+                    }else{
+                        my_postion.active = true;
+                    }
+                    my_postion.auto_active = false;
+                    this.positionService.updatePositionOne(my_postion['_id'], my_postion);
+                }else{
+                    await this.telegramService.transactionResponse(user, msg, 200); 
+                }   
                 const log = {
                     id: userid, 
                     hash: result.transactionHash, 
@@ -347,7 +400,7 @@ export class SwapService implements OnModuleInit {
                     tokenA: token_data.name,
                     tokenB: 'SEI',
                     amount: return_sei,
-                    t_amount: swap.amount,
+                    t_amount: swap_amount,
                     created: this.currentTime(), 
                     other: brandId
                 }
@@ -394,7 +447,14 @@ export class SwapService implements OnModuleInit {
             }   
         }catch(e){ 
             console.log(">>ERRO ", e)
-            await this.telegramService.transactionResponse(user, e.message, 400);
+            if(mode == ACTIONS.AUTOSELL){
+                var auto_pos:PositionType = other;
+                auto_pos.auto.status = 1;
+                auto_pos.auto_active = true;
+                this.positionService.updateOneAutoPostion(auto_pos);
+            }else{
+               await this.telegramService.transactionResponse(user, e.message, 400); 
+            }            
         }   
     }
 
@@ -425,7 +485,7 @@ export class SwapService implements OnModuleInit {
 
             var result: any = null;
             
-            const token_data = this.tokenList.find((t)=>t.denom == denom); 
+            const token_data = this.pairService.tokenList.find((t)=>t.denom == denom); 
             if (denom.slice(0, 3) == 'sei') {
                 const fee = calculateFee(200000, "0.1usei");
                 const signingClient = await getSigningCosmWasmClient(RPC_URL, wallet);
@@ -549,7 +609,7 @@ export class SwapService implements OnModuleInit {
 //     try{
 //         const userid = user.id; 
 //         const swap = user.swap;  
-//         const token_data = this.tokenList.find((t)=>t.denom == swap.token); 
+//         const token_data = this.pairService.tokenList.find((t)=>t.denom == swap.token); 
 //         const rpc = RPC_URL;
 //         const mnemonic = user.wallet.key; 
 //         const wallet = await restoreWallet(mnemonic);

@@ -2,8 +2,8 @@ export const TG_TOKEN = "6550018263:AAFmmeaOZLc_X1-2E8p3tQUQaOzkDpmnGRs";
 // export const TG_TOKEN = "6472065798:AAF7g_E26ONCm53XikO3Ockio6c2M_cEllE";  
 // export const MONGO_ROOT = 'mongodb+srv://seiyanbot:Qwer1234@superseiyanbot.q4hgdq0.mongodb.net/seibot?retryWrites=true&w=majority';
 
-export const MONGO_ROOT = 'mongodb+srv://songil:YHONhFTJXhCI1Jic@cluster0.bnlf1sq.mongodb.net/seibot?retryWrites=true&w=majority'; 
- 
+export const MONGO_ROOT = 'mongodb+srv://songil:YHONhFTJXhCI1Jic@cluster0.bnlf1sq.mongodb.net/seibot?retryWrites=true&w=majority';
+
 export const REST_URL = 'https://sei-api.polkachu.com/';
 export const RPC_URL = 'https://sei-rpc.polkachu.com/';
 // export const REST_URL = 'https://rpc.ankr.com/premium-http/sei_cosmos/d4d407f01b5802e48cec063e8e63e752db187a691ef40458a890ee958c799ce6';
@@ -24,13 +24,15 @@ export const ACTIONS = {
     CREATE_POSTION: 'CREATE_POSITION',
     TRANSFER: 'TRANSFER',
     POSITION_SELL: 'POSITION_SELL',
-    CUT_FEE: 'CUT_FEE'
+    CUT_FEE: 'CUT_FEE',
+    AUTOBUY: 'AUTOBUY',
+    AUTOSELL: 'AUTOSELL'
 }
 
 export const PANELS = {
-    P_A_FEE:'admin_ref_fee', 
-    P_SETTING:'setting_panel',
-    P_MAIN:'main_panel',
+    P_A_FEE: 'admin_ref_fee',
+    P_SETTING: 'setting_panel',
+    P_MAIN: 'main_panel',
     P_WALLET: 'wallet_panel',
     P_SWAP: 'swap_panel',
     P_TRANSFER: 'transfer_panel',

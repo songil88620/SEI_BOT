@@ -46,7 +46,7 @@ export class TelegramService implements OnModuleInit {
     private lastMsg: number = 0;
 
     private hotListForSwap = [];
-    private allListForSwap = [];
+
 
     constructor(
         @Inject(forwardRef(() => UserService)) private userService: UserService,
@@ -79,10 +79,8 @@ export class TelegramService implements OnModuleInit {
 
     updateListForSwap = async () => {
         const hot = await this.pairService.getHotPair(8);
-        const all = await this.pairService.findAll();
         const sei = { name: "SEI", denom: "usei", decimal: 6 };
         this.hotListForSwap = [sei, ...hot];
-        this.allListForSwap = [sei, ...all]
         return;
     }
 
@@ -275,16 +273,16 @@ export class TelegramService implements OnModuleInit {
                 if (cmd == 'buysell_buy') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
                     if (current_panel == PANELS.P_SWAP) {
-                        await this.swapService.buy_token(user, ACTIONS.SWAP)
+                        await this.swapService.buy_token(user, ACTIONS.SWAP, null)
                         await this.panel_buysell(user)
                     } else {
-                        await this.swapService.buy_token(user, ACTIONS.CREATE_POSTION)
+                        await this.swapService.buy_token(user, ACTIONS.CREATE_POSTION, null)
                         // await this.panel_postion_list(user)
                     }
                 }
                 if (cmd == 'buysell_sell') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
-                    await this.swapService.sell_token(user, ACTIONS.SWAP, '0')
+                    await this.swapService.sell_token(user, ACTIONS.SWAP, '0', null)
                     await this.panel_buysell(user)
                 }
             }
@@ -366,12 +364,12 @@ export class TelegramService implements OnModuleInit {
                 }
                 if (cmd == 'pos_mng_sellall') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
-                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '100%');
+                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '100%', null);
 
                 }
                 if (cmd == 'pos_mng_sellhal') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
-                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '50%');
+                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, '50%', null);
 
                 }
                 if (cmd == 'pos_mng_sellxxx') {
@@ -944,7 +942,7 @@ export class TelegramService implements OnModuleInit {
                     await this.bot.sendMessage(userid, "<b>Sell X(position)</b>", options);
                 } else {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
-                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, message);
+                    await this.swapService.sell_token(user, ACTIONS.POSITION_SELL, message, null);
                 }
             }
 

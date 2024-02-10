@@ -21,6 +21,7 @@ export interface PositionType {
         buy_price: string,
         sell_amount: string,
         sell_price: string,
+        status:number,
     },
     auto_active?: boolean;
 }
@@ -65,6 +66,7 @@ export class Position {
         buy_price: string,
         sell_amount: string,
         sell_price: string,
+        status: number
     };
 
     @Prop()

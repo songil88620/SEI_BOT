@@ -1,7 +1,7 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { PairDocument } from './pair.schema';
+import { PairDocument, PairType } from './pair.schema';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import axios from 'axios';
 
@@ -10,6 +10,7 @@ import axios from 'axios';
 export class PairService {
 
     private timer = 0;
+    public tokenList: PairType[] = [];
 
     constructor(
         @InjectModel('pair') private readonly model: Model<PairDocument>,
@@ -22,7 +23,7 @@ export class PairService {
         }
     }
 
-    // run every 2 mins
+    // run every 2 mins for database
     @Cron(CronExpression.EVERY_MINUTE, { name: 'pair_bot' })
     async pairBot() {
         this.timer = this.timer + 1;
@@ -32,6 +33,12 @@ export class PairService {
                 this.timer = 0;
             }
         }
+    }
+
+    // run every 30 seconds for memory
+    @Cron(CronExpression.EVERY_30_SECONDS, { name: 'token_list_bot' })
+    async pairsList() {
+        await this.updateTokenList()
     }
 
     async getHotPair(n: number) {
@@ -44,7 +51,7 @@ export class PairService {
     async updatePair() {
         try {
             const pages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-            for (var p of pages) { 
+            for (var p of pages) {
                 const res = await axios.get('https://api.geckoterminal.com/api/v2/networks/sei-network/pools?page=' + p);
                 for (var item of res.data.data) {
                     const data = {
@@ -86,6 +93,38 @@ export class PairService {
         } catch (e) {
             return
         }
+    }
+
+    updateTokenList = async () => {
+        const all = await this.model.find().exec();
+        const sei: PairType = {
+            id: '',
+            type: '',
+            price: '',
+            pool: '',
+            denom: 'usei',
+            name: 'SEI',
+            decimal: '',
+            trx_h1: 0,
+            trx_h24: 0,
+            other_1: {
+                vol_h1: '',
+                vol_h24: '',
+                pch_h1: '',
+                pch_h24: ''
+            },
+            other_2: {
+                base_token_price: '',
+                quote_token_price: '',
+                price: '',
+                liquidity: '',
+                cap: '',
+                p_ch_h1: '',
+                p_ch_h24: ''
+            },
+            updated: ''
+        }
+        this.tokenList = [sei, ...all]
     }
 
     async getPairByToken(denom: string) {

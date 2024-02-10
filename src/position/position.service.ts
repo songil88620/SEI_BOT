@@ -13,27 +13,78 @@ import { PairType } from 'src/pair/pair.schema';
 @Injectable()
 export class PositionService {
 
+    public Auto_Positions: PositionType[] = [];
+
     constructor(
         @InjectModel('position') private readonly model: Model<PositionDocument>,
         @Inject(forwardRef(() => PairService)) private pairService: PairService,
     ) { }
 
-    async onModuleInit() {
+    onModuleInit = async () => {
         try {
+            await this.initAutoPositions();
         } catch (e) {
         }
     }
 
-    @Cron(CronExpression.EVERY_5_MINUTES, { name: 'position_bot' })
-    async pairBot() {
+    @Cron(CronExpression.EVERY_5_MINUTES, { name: 'sync_auto_pos_with_db' })
+    async autoPositionSync() {
+        await this.initAutoPositions();
+    }
 
+    @Cron(CronExpression.EVERY_30_SECONDS, { name: 'auto_position_bot' })
+    async autoPositionBot() {
+        this.handleAutoPostion()
+    }
+
+    handleAutoPostion = () => {
+        this.Auto_Positions.forEach((at_pos, idx) => {
+            const denom = at_pos.denom;
+            const token_data = this.pairService.tokenList.find((t) => t.denom == denom);
+            const current_price = token_data.price;
+            const buy_price = at_pos.auto.buy_price;
+            const sell_price = at_pos.auto.sell_price;
+
+            // 0: inited, wait to buy, 1: already bought, wait to sell, 2: already sold, end
+            const current_stage = at_pos.auto.status;
+            if (current_stage == 0 && current_price <= buy_price) {
+                // auto buy token 
+                this.Auto_Positions[idx].auto.status = 1;
+                this.autoPositionBuyAction(at_pos, token_data)
+            }
+            if (current_stage == 1 && sell_price <= current_price) {
+                // auto sell token 
+                this.Auto_Positions[idx].auto.status = 2;
+                this.Auto_Positions[idx].auto_active = false;
+                this.autoPositionSellAction(at_pos, token_data)
+            }
+        })
+    }
+
+    autoPositionBuyAction = async (postion: PositionType, token: PairType) => {
+
+    }
+
+    autoPositionSellAction = async (postion: PositionType, token: PairType) => {
+
+    }
+
+    updateOneAutoPostion = (position: PositionType) => {
+        const idx = this.Auto_Positions.findIndex(obj => obj['_id'] === position['_id']);
+        this.Auto_Positions[idx] = position;
+    }
+
+    initAutoPositions = async () => {
+        const pos: PositionType[] = await this.model.find({ active: true, auto_active: true });
+        this.Auto_Positions = pos
+        console.log(">>>THIHI", this.Auto_Positions)
     }
 
     async createNewOne(data: any) {
         await new this.model({ ...data }).save();
     }
 
-    async createAutoNewOne(user: UserType) {
+    createAutoNewOne = async (user: UserType) => {
         try {
             const td: PairType = await this.pairService.getPairByToken(user.autotrade.token);
             const new_pos: PositionType = {
@@ -54,11 +105,13 @@ export class PositionService {
                     buy_amount: user.autotrade.buy_amount,
                     buy_price: user.autotrade.buy_price,
                     sell_amount: user.autotrade.sell_amount,
-                    sell_price: user.autotrade.sell_price
+                    sell_price: user.autotrade.sell_price,
+                    status: 0
                 },
                 auto_active: true
             }
             await new this.model({ ...new_pos }).save();
+            this.Auto_Positions.push(new_pos)
             return true
         } catch (e) {
             return false
