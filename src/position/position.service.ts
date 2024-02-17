@@ -103,7 +103,7 @@ export class PositionService {
                 denom: td.denom,
                 initial: {
                     sei_amount: user.autotrade.buy_amount,
-                    sei_price: user.autotrade.buy_price,
+                    sei_price: '0',
                     token_amount: '0',
                     token_price: user.autotrade.sell_price,
                     pool: td.pool

@@ -1052,7 +1052,7 @@ export class TelegramService implements OnModuleInit {
             }
 
             if (reply_msg == 'Buy Price (auto-trade)') {
-                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                const decimalRegex = /^\d+(\.\d{1,5})?$/;
                 if (decimalRegex.test(message)) {
                     var autotrade = user.autotrade;
                     autotrade.buy_price = message;
@@ -1072,7 +1072,7 @@ export class TelegramService implements OnModuleInit {
             }
 
             if (reply_msg == 'Sell Price (auto-trade)') {
-                const decimalRegex = /^\d+(\.\d{1,2})?$/;
+                const decimalRegex = /^\d+(\.\d{1,5})?$/;
                 if (decimalRegex.test(message)) {
                     var autotrade = user.autotrade;
                     autotrade.sell_price = message;
@@ -1258,7 +1258,7 @@ export class TelegramService implements OnModuleInit {
                 await this.bot.sendMessage(userId, 'Setting for position management', options);
                 await this.userService.update(userId, { current_panel: PANELS.P_AUTOPOS_LIST });
             } else {
-                var pos_msg = pos_msg + "You don't have any positions yet, ☹️ \n";
+                var pos_msg = "You don't have any positions yet, ☹️ \n";
                 var sei_balance = await this.swapService.getSeiBalance(user);
                 pos_msg = pos_msg + "\n" + "Wallet Balance: <b>" + sei_balance + " SEI</b>";
                 await this.bot.sendMessage(userId, pos_msg, { parse_mode: "HTML" });

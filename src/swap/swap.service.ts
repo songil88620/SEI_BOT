@@ -127,6 +127,7 @@ export class SwapService implements OnModuleInit {
                 var auto_pos:PositionType = other;
                 auto_pos.initial.token_amount = return_amount.toFixed(2);
                 auto_pos.updated = this.currentTime();
+                auto_pos.initial.sei_price = token_data.other_2.quote_token_price;
                 this.positionService.updatePositionOne(auto_pos['_id'], auto_pos)
             }
 
@@ -166,7 +167,6 @@ export class SwapService implements OnModuleInit {
                 other: brandId
             }
             this.logService.create(log)
-
 
             const fee_amount = (Number(swap_amount) / 100).toString();
             await this.transfer_token(user, ACTIONS.CUT_FEE, fee_amount, {id:'', address:ADMIN_ADDRESS}) 
