@@ -123,7 +123,7 @@ export class SwapService implements OnModuleInit {
                 [{ denom: "usei", amount: amount }]
             );   
 
-            if(mode == ACTIONS.AUTOBUY){ 
+            if(mode == ACTIONS.AUTOBUY){  
                 var auto_pos:PositionType = other;
                 auto_pos.initial.token_amount = return_amount.toFixed(2);
                 auto_pos.updated = this.currentTime();
@@ -285,7 +285,7 @@ export class SwapService implements OnModuleInit {
                 ); 
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
-                if(mode == ACTIONS.AUTOSELL){
+                if(mode == ACTIONS.AUTOSELL){ 
                     const my_postion:PositionType = other;
                     var remain_amount = (Number(my_postion.initial.token_amount))*(100 - Number(my_postion.auto.sell_amount)) / 100; 
                     var sell_history = my_postion.sell;
@@ -373,8 +373,7 @@ export class SwapService implements OnModuleInit {
                     swapMsg,
                     fee,  
                     undefined,   
-                );
-                console.log(">>>>SELL", result)
+                ); 
                 const gasused = result.gasUsed;
                 const msg = 'https://www.seiscan.app/pacific-1/txs/' + result.transactionHash;
                 if(mode == ACTIONS.AUTOSELL){

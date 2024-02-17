@@ -8,6 +8,9 @@ import { skip, take } from 'rxjs';
 import { UserType } from 'src/user/user.schema';
 import { PairService } from 'src/pair/pair.service';
 import { PairType } from 'src/pair/pair.schema';
+import { SwapService } from 'src/swap/swap.service';
+import { UserService } from 'src/user/user.service';
+import { ACTIONS } from 'src/constant';
 
 
 @Injectable()
@@ -18,6 +21,8 @@ export class PositionService {
     constructor(
         @InjectModel('position') private readonly model: Model<PositionDocument>,
         @Inject(forwardRef(() => PairService)) private pairService: PairService,
+        @Inject(forwardRef(() => SwapService)) private swapService: SwapService,
+        @Inject(forwardRef(() => UserService)) private userService: UserService,
     ) { }
 
     onModuleInit = async () => {
@@ -37,36 +42,42 @@ export class PositionService {
         this.handleAutoPostion()
     }
 
-    handleAutoPostion = () => {
-        this.Auto_Positions.forEach((at_pos, idx) => {
-            const denom = at_pos.denom;
-            const token_data = this.pairService.tokenList.find((t) => t.denom == denom);
-            const current_price = token_data.price;
-            const buy_price = at_pos.auto.buy_price;
-            const sell_price = at_pos.auto.sell_price;
+    handleAutoPostion = () => { 
+        try { 
+            this.Auto_Positions.forEach((at_pos, idx) => {
+                const denom = at_pos.denom;
+                const token_data = this.pairService.tokenList.find((t) => t.denom == denom);
+                const current_price = token_data.price;
+                const buy_price = at_pos.auto.buy_price;
+                const sell_price = at_pos.auto.sell_price;
 
-            // 0: inited, wait to buy, 1: already bought, wait to sell, 2: already sold, end
-            const current_stage = at_pos.auto.status;
-            if (current_stage == 0 && current_price <= buy_price) {
-                // auto buy token 
-                this.Auto_Positions[idx].auto.status = 1;
-                this.autoPositionBuyAction(at_pos, token_data)
-            }
-            if (current_stage == 1 && sell_price <= current_price) {
-                // auto sell token 
-                this.Auto_Positions[idx].auto.status = 2;
-                this.Auto_Positions[idx].auto_active = false;
-                this.autoPositionSellAction(at_pos, token_data)
-            }
-        })
+                // 0: inited, wait to buy, 1: already bought, wait to sell, 2: already sold, end
+                const current_stage = at_pos.auto.status;
+                if (current_stage == 0 && current_price <= buy_price) {
+                    // auto buy token 
+                    this.Auto_Positions[idx].auto.status = 1;
+                    this.autoPositionBuyAction(at_pos, token_data)
+                } 
+                if (current_stage == 1 && sell_price <= current_price) {
+                    // auto sell token  
+                    this.Auto_Positions[idx].auto.status = 2;
+                    this.Auto_Positions[idx].auto_active = false;
+                    this.autoPositionSellAction(at_pos, token_data)
+                }
+            })
+        } catch (e) {
+            console.log(">>err", e)
+        } 
     }
 
     autoPositionBuyAction = async (postion: PositionType, token: PairType) => {
-
+        const user = await this.userService.findOne(postion.user_id)
+        await this.swapService.buy_token(user, ACTIONS.AUTOBUY, postion);
     }
 
-    autoPositionSellAction = async (postion: PositionType, token: PairType) => {
-
+    autoPositionSellAction = async (postion: PositionType, token: PairType) => { 
+        const user = await this.userService.findOne(postion.user_id)
+        await this.swapService.sell_token(user, ACTIONS.AUTOSELL, '', postion)
     }
 
     updateOneAutoPostion = (position: PositionType) => {
@@ -76,8 +87,7 @@ export class PositionService {
 
     initAutoPositions = async () => {
         const pos: PositionType[] = await this.model.find({ active: true, auto_active: true });
-        this.Auto_Positions = pos
-        console.log(">>>THIHI", this.Auto_Positions)
+        this.Auto_Positions = pos 
     }
 
     async createNewOne(data: any) {

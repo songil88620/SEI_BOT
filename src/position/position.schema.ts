@@ -66,7 +66,7 @@ export class Position {
         buy_price: string,
         sell_amount: string,
         sell_price: string,
-        status: number
+        status: number, // 0: inited, wait to buy, 1: already bought, wait to sell, 2: already sold, end
     };
 
     @Prop()

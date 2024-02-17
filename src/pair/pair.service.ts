@@ -25,7 +25,7 @@ export class PairService {
 
     // run every 2 mins for database
     @Cron(CronExpression.EVERY_MINUTE, { name: 'pair_bot' })
-    async pairBot() {
+    async pairBot() { 
         this.timer = this.timer + 1;
         if (this.timer % 2) {
             await this.updatePair();

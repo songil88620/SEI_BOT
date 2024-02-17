@@ -241,13 +241,7 @@ export class User {
     inviter: string;
 
     @Prop()
-    txamount: number;
-
-    @Prop()
-    current_page: number;
-
-    @Prop()
-    current_panel: string;
+    txamount: number;  
 
     @Prop({ type: {} })
     setting: {
@@ -271,6 +265,12 @@ export class User {
         sell_amount: string,
         sell_price: string,
     };
+
+    @Prop()
+    current_page: number;
+
+    @Prop()
+    current_panel: string;
 
 }
 
