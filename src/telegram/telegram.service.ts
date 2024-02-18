@@ -16,6 +16,7 @@ import { PositionService } from 'src/position/position.service';
 import { PositionType } from 'src/position/position.schema';
 import { PairType } from 'src/pair/pair.schema';
 import { set } from 'mongoose';
+import { Msg } from '@terra-money/feather.js';
 
 const fs = require('fs')
 const path = require('path')
@@ -1851,6 +1852,10 @@ export class TelegramService implements OnModuleInit {
         }
         return;
         // await this.sendStartSelectOption(userId)
+    }
+
+    autoTradeNotification = async (userid: string, msg: string) => {
+        await this.bot.sendMessage(userid, msg, { parse_mode: 'HTML' })
     }
 
     referralRewardMsg = async (userId: string, amount: string) => {

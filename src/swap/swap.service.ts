@@ -129,6 +129,9 @@ export class SwapService implements OnModuleInit {
                 auto_pos.updated = this.currentTime();
                 auto_pos.initial.sei_price = token_data.other_2.quote_token_price;
                 this.positionService.updatePositionOne(auto_pos['_id'], auto_pos)
+                const msg = "<b>🎯 Auto buy transaction is processed successfully</b>\n" +
+                "https://www.seiscan.app/pacific-1/txs/" + result.transactionHash;
+                this.telegramService.autoTradeNotification(user.id, msg)
             }
 
             const gasused = result.gasUsed;
@@ -291,13 +294,20 @@ export class SwapService implements OnModuleInit {
                     var sell_history = my_postion.sell;
                     const cm = (Number(amount) / (10**6)).toFixed(2);
                     sell_history.push(cm.toString());
+                    var a_msg = "";
                     if(my_postion.auto.sell_amount == '100'){
                         my_postion.active = false;
+                        a_msg = "<b>🎯 Auto sell(100%) transaction is processed successfully</b>\n" +
+                                "https://www.seiscan.app/pacific-1/txs/" + result.transactionHash;
                     }else{
                         my_postion.active = true;
+                        a_msg = "<b>🎯 Auto sell("+my_postion.auto.sell_amount+"%) transaction is processed successfully</b>\n" +
+                                "<b>🤩 Remaining balance turns into normal position</b>\n" +
+                                "https://www.seiscan.app/pacific-1/txs/" + result.transactionHash;
                     }
                     my_postion.auto_active = false;
-                    this.positionService.updatePositionOne(my_postion['_id'], my_postion);
+                    this.positionService.updatePositionOne(my_postion['_id'], my_postion); 
+                    this.telegramService.autoTradeNotification(user.id, a_msg)
                 }else{
                     await this.telegramService.transactionResponse(user, msg, 200); 
                 }   
