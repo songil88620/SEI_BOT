@@ -6,7 +6,7 @@ import { calculateFee } from "@cosmjs/stargate";
 import { SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
 import { DirectSecp256k1HdWallet, coins } from "@cosmjs/proto-signing";
 import { GasPrice } from "@cosmjs/stargate";
-import { LCDClient, MnemonicKey, MsgExecuteContract, Coins, Fee } from '@terra-money/feather.js';
+import { LCDClient, MnemonicKey, MsgExecuteContract, Coins, Fee, dec } from '@terra-money/feather.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LogService } from 'src/log/log.service';
 import { PairService } from 'src/pair/pair.service'; 
@@ -98,7 +98,8 @@ export class SwapService implements OnModuleInit {
                     }
                 }
             );  
-            const return_amount = Number(sQ.return_amount) / 1000000 * Number(swap_amount); 
+            const decimal = Number(token_data.decimal);
+            const return_amount = Number(sQ.return_amount) / 10**decimal * Number(swap_amount); 
             const swapMsg = {
                 "swap": {
                     "max_spread":slippage,
@@ -219,7 +220,8 @@ export class SwapService implements OnModuleInit {
                 rpc,
                 wallet,
             );
-            var amount = (Math.floor(Number(swap_amount) * 10**6)).toString();   
+            const decimal = Number(token_data.decimal);
+            var amount = (Math.floor(Number(swap_amount) * 10**decimal)).toString();   
             const slippage = (Number(setting.sell_slippage) / 100).toString();
             var pairContract = token_data.pool;
             var tokenContract = token_data.denom; 
@@ -231,11 +233,11 @@ export class SwapService implements OnModuleInit {
                     remain_amount = remain_amount - Number(ps)
                 })  
                 if(c_amount == '100%'){
-                    amount = (Math.floor(Number(remain_amount) * 10**6 * 0.995)).toString();   
+                    amount = (Math.floor(Number(remain_amount) * 10**decimal * 0.995)).toString();   
                 }else if(c_amount == '50%'){
-                    amount = (Math.floor(Number(remain_amount) * 10**6 /2)).toString();   
+                    amount = (Math.floor(Number(remain_amount) * 10**decimal /2)).toString();   
                 }else{
-                    amount = (Math.floor(Number(c_amount) * 10**6)).toString();       
+                    amount = (Math.floor(Number(c_amount) * 10**decimal)).toString();       
                 } 
                 pairContract = my_postion.initial.pool;
                 tokenContract = my_postion.denom;
@@ -271,9 +273,9 @@ export class SwapService implements OnModuleInit {
                     "offer_asset": {
                         "amount": amount,
                         "info": {
-                        "native_token": {
-                            "denom": tokenContract
-                        }
+                            "native_token": {
+                                "denom": tokenContract
+                            }
                         }
                     }
                     }
@@ -292,7 +294,7 @@ export class SwapService implements OnModuleInit {
                     const my_postion:PositionType = other;
                     var remain_amount = (Number(my_postion.initial.token_amount))*(100 - Number(my_postion.auto.sell_amount)) / 100; 
                     var sell_history = my_postion.sell;
-                    const cm = (Number(amount) / (10**6)).toFixed(2);
+                    const cm = (Number(amount) / (10**decimal)).toFixed(2);
                     sell_history.push(cm.toString());
                     var a_msg = "";
                     if(my_postion.auto.sell_amount == '100'){
@@ -341,7 +343,7 @@ export class SwapService implements OnModuleInit {
                     my_postion.active = new_active;
                     my_postion.updated = this.currentTime(); 
                     var sell_history = my_postion.sell;
-                    const cm = (Number(amount) / (10**6)).toFixed(2)
+                    const cm = (Number(amount) / (10**decimal)).toFixed(2)
                     sell_history.push(cm.toString());
                     my_postion.sell = sell_history;
                     await this.positionService.updatePositionOne(_id, my_postion);
@@ -390,7 +392,7 @@ export class SwapService implements OnModuleInit {
                     const my_postion:PositionType = other;
                     var remain_amount = (Number(my_postion.initial.token_amount))*(100 - Number(my_postion.auto.sell_amount)) / 100; 
                     var sell_history = my_postion.sell;
-                    const cm = (Number(amount) / (10**6)).toFixed(2);
+                    const cm = (Number(amount) / (10**decimal)).toFixed(2);
                     sell_history.push(cm.toString());
                     if(my_postion.auto.sell_amount == '100'){
                         my_postion.active = false;
@@ -432,7 +434,7 @@ export class SwapService implements OnModuleInit {
                     my_postion.active = new_active;
                     my_postion.updated = this.currentTime(); 
                     var sell_history = my_postion.sell;
-                    const cm = (Number(amount) / (10**6)).toFixed(2)
+                    const cm = (Number(amount) / (10**decimal)).toFixed(2)
                     sell_history.push(cm.toString()); 
                     my_postion.sell = sell_history;
                     await this.positionService.updatePositionOne(_id, my_postion);

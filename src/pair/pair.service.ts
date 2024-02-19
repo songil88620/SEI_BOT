@@ -18,14 +18,14 @@ export class PairService {
 
     async onModuleInit() {
         try {
-            // await this.updatePair();
+          // await this.updatePair();
         } catch (e) {
         }
     }
 
     // run every 2 mins for database
     @Cron(CronExpression.EVERY_MINUTE, { name: 'pair_bot' })
-    async pairBot() { 
+    async pairBot() {
         this.timer = this.timer + 1;
         if (this.timer % 2) {
             await this.updatePair();
@@ -38,7 +38,7 @@ export class PairService {
     // run every 30 seconds for memory
     @Cron(CronExpression.EVERY_30_SECONDS, { name: 'token_list_bot' })
     async pairsList() {
-        await this.updateTokenList()
+         await this.updateTokenList()
     }
 
     async getHotPair(n: number) {

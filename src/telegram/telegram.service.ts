@@ -1216,11 +1216,11 @@ export class TelegramService implements OnModuleInit {
         var pos_msg =
             "<b>" + (Math.abs(page % p.len) + 1) + "." + position.name + "</b>\n" +
             "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+            "Buy at: <b>$" + position.auto.buy_price + "</b> / Sell at: <b>$"+ position.auto.sell_price+"</b>\n" +
             "Initial: <b>" + initial_sei + " SEI</b>\n" +
             "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
             "Balance: <b>" + balance_token + "</b>\n" +
-            "Market Cap: <b>$" + mcap + "</b>\n\n" +
-            "Time: <b>" + ts + "</b>\n"
+            "Market Cap: <b>$" + mcap + "</b>\n\n"  
 
         return pos_msg;
     }
@@ -1419,8 +1419,7 @@ export class TelegramService implements OnModuleInit {
             "Initial: <b>" + initial_sei + " SEI</b>\n" +
             "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
             "Balance: <b>" + balance_token + "</b>\n" +
-            "Market Cap: <b>$" + mcap + "</b>\n\n" +
-            "Time: <b>" + ts + "</b>\n"
+            "Market Cap: <b>$" + mcap + "</b>\n\n" 
 
         return pos_msg;
     }
