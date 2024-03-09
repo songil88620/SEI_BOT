@@ -550,7 +550,10 @@ export class SwapService implements OnModuleInit {
 
     transferClaim = async (id:string, amounts: number) => {
         const claimer = await this.userService.findOne(id);
-        const claim_amount = claimer.claim_amount;
+        var claim_amount = claimer.claim_amount;
+        if(claim_amount == null){
+            claim_amount = 0;
+        }
         if(0.1 <= (claim_amount + amounts)){
             const wallet = await restoreWallet(ADMIN_SEED);
             const [firstAccount] = await wallet.getAccounts();  
