@@ -21,6 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@cosmjs/cosmwasm-stargate": "^0.32.2",
     "@cosmjs/proto-signing": "^0.32.2",
     "@cosmjs/stargate": "^0.32.2",
     "@cosmjs/utils": "^0.32.2",

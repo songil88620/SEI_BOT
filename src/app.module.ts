@@ -9,11 +9,10 @@ import { UserModule } from './user/user.module';
 import { SwapModule } from './swap/swap.module';
 import { BotModule } from './bot/bot.module';
 import { SnipeModule } from './snipe/snipe.module'; 
-import { ScheduleModule } from '@nestjs/schedule'; 
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core'; 
+import { ScheduleModule } from '@nestjs/schedule';  
 import { PairModule } from './pair/pair.module';
 import { PositionModule } from './position/positioni.module';
+import { LevanaModule } from './levana/levana.module';
 
 @Module({
   imports: [
@@ -26,19 +25,12 @@ import { PositionModule } from './position/positioni.module';
     SnipeModule, 
     BotModule,
     PairModule,
-    PositionModule,
-    ThrottlerModule.forRoot({
-      ttl: 60,
-      limit: 100
-    })
+    PositionModule, 
+    LevanaModule
   ],
   controllers: [AppController],
   providers: [
-    AppService,
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard
-    }
+    AppService, 
   ],
 })
 export class AppModule { }

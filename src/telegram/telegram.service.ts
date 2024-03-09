@@ -126,6 +126,9 @@ export class TelegramService implements OnModuleInit {
                 if (cmd == 'call_m_autotrade') {
                     await this.panel_autotrade(user)
                 }
+                if (cmd == 'call_m_leverage') {
+                    await this.panel_leverage_main(user)
+                }
                 if (cmd == 'call_m_referrals') {
                     const user = await this.userService.findOne(id);
                     const code = user.code;
@@ -352,16 +355,25 @@ export class TelegramService implements OnModuleInit {
                 };
                 if (cmd == 'pos_mng_prev') {
                     user.current_page = user.current_page - 1;
-                    await this.panel_manage_position(user);
+                    const msg_id = this.uc_msg[user.id];
+                    const msg = await this.generate_one_pos_msg(user);
+                    const e_msg = await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
+                    this.uc_msg[user.id] = e_msg.message_id;
                     await this.userService.update(id, { current_page: user.current_page });
+                    // await this.panel_manage_position(user);
+
                 }
                 if (cmd == 'pos_mng_null') {
                     return;
                 }
                 if (cmd == 'pos_mng_next') {
                     user.current_page = user.current_page + 1;
-                    await this.panel_manage_position(user);
+                    const msg_id = this.uc_msg[user.id];
+                    const msg = await this.generate_one_pos_msg(user);
+                    const e_msg = await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
+                    this.uc_msg[user.id] = e_msg.message_id;
                     await this.userService.update(id, { current_page: user.current_page });
+                    // await this.panel_manage_position(user);
                 }
                 if (cmd == 'pos_mng_sellall') {
                     await this.bot.sendMessage(id, "<b>⏳ Transaction Sent, Waiting for tx confirmation…</b>", { parse_mode: "HTML" });
@@ -461,16 +473,24 @@ export class TelegramService implements OnModuleInit {
             if (cmd.includes('posauto_')) {
                 if (cmd == 'posauto_mng_prev') {
                     user.current_page = user.current_page - 1;
-                    await this.panel_autotrade_list(user);
+                    const msg_id = this.uc_msg[user.id];
+                    const msg = await this.generate_one_autopos_msg(user);
+                    const e_msg = await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
+                    this.uc_msg[user.id] = e_msg.message_id;
                     await this.userService.update(id, { current_page: user.current_page });
+                    // await this.panel_autotrade_list(user);
                 }
                 if (cmd == 'posauto_mng_null') {
                     return;
                 }
                 if (cmd == 'posauto_mng_next') {
                     user.current_page = user.current_page + 1;
-                    await this.panel_autotrade_list(user);
+                    const msg_id = this.uc_msg[user.id];
+                    const msg = await this.generate_one_autopos_msg(user);
+                    const e_msg = await this.bot.editMessageText(msg, { chat_id: user.id, message_id: msg_id, parse_mode: "HTML" })
+                    this.uc_msg[user.id] = e_msg.message_id;
                     await this.userService.update(id, { current_page: user.current_page });
+                    // await this.panel_autotrade_list(user);
                 }
                 if (cmd == 'posauto_mng_remove') {
                     const pid = this.uc_tmp[id]['_id'];
@@ -1191,6 +1211,121 @@ export class TelegramService implements OnModuleInit {
 
     }
 
+    generate_confirm_leverage_msg = async (user: UserType) => {
+        const balance = '0';
+        const token_price = '0';
+        var msg =
+            "📌 Position Size: <b>" + balance + "</b>\n" +
+            "🔵 Current Price: <b>" + balance + "</b>\n" +
+            "🔋 Liquidation Price: <b>$" + token_price + "</b>\n" +
+            "🔥 Borrow Fee: <b>" + '10' + "%</b>\n" +
+            "⛽️ Delta Neutrality Fee: <b>" + '10' + "%</b>\n" +
+            "🍔 Trade Fees: <b>" + '10' + "%</b>\n"
+        return msg;
+    }
+
+
+    generate_status_leverage_msg = async (user: UserType) => {
+        const balance = '0';
+        const token_price = '0';
+        var msg =
+            "🧭 Direction: <b>" + balance + "</b>\n" +
+            "🍬 PNL: <b>" + balance + "</b>\n" +
+            "📙 Collateral: <b>" + balance + "</b>\n" +
+            "💎 Leverage: <b>" + balance + "</b>\n" +
+            "📌 Position Size: <b>" + balance + "</b>\n" +
+            "🔵 Entry Price: <b>" + balance + "</b>\n" +
+            "🟢 Take Profit Price: <b>" + balance + "</b>\n" +
+            "🤑 Expected Profit: <b>" + balance + "</b>\n" +
+            "🔴 Stop Loss Price: <b>$" + token_price + "</b>\n" +
+            "☹️ Expected Loss: <b>$" + token_price + "</b>\n" +
+            "🔋 Liquidation Price: <b>$" + token_price + "</b>\n" +
+            "🔥 Fees: <b>" + '10' + "%</b>\n" +
+            "📍 Postion ID: <b>" + ' xx ' + "</b>\n"
+
+        return msg;
+    }
+
+    generate_normal_leverage_msg = async (user: UserType) => {
+        const balance = '0';
+        const token_price = '0';
+        var msg =
+            "💰 Balance: <b>" + balance + "</b>\n" +
+            "💸 Token Price: <b>$" + token_price + "</b>\n" +
+            "💎 SEI Price: <b>$" + token_price + "</b>\n" +
+            "🔋 Liquidity: <b>$" + token_price + "</b>\n" +
+            "🚀 Price Change: <b>" + '10' + "%</b>\n" +
+            "💲 Token pair: <b>" + ' xx ' + "</b>\n" +
+            "🔥 GasPirce: <b>" + "xx" + " SEI</b>\n" +
+            "🚧 Slippage: <b>" + "xx" + "</b>\n\n"
+        return msg;
+    }
+
+    panel_leverage_main = async (user: UserType) => {
+        const userId = user.id;
+        const lv_msg = await this.generate_normal_leverage_msg(user);
+        const msg = await this.bot.sendMessage(userId, lv_msg, { parse_mode: "HTML" });
+        this.uc_msg[userId] = msg.message_id;
+
+        var inline_key = [];
+        inline_key.push([
+            { text: 'Long', callback_data: 'leverage_m_long' },
+            { text: 'Short', callback_data: 'leverage_m_short' }
+        ]);
+        inline_key.push([{ text: 'Collateral(SEI)', callback_data: 'leverage_' }]);
+        inline_key.push([{ text: 'Leverage', callback_data: 'leverage_' }]);
+        inline_key.push([
+            { text: '2x', callback_data: 'leverage_m_2' },
+            { text: '5x', callback_data: 'leverage_m_5' },
+            { text: '10x', callback_data: 'leverage_m_10' },
+            { text: '15x', callback_data: 'leverage_m_15' },
+            { text: '30x', callback_data: 'leverage_m_30' }
+        ]);
+        inline_key.push([
+            { text: 'Take Profit Price:', callback_data: 'leverage_m_profit' },
+            { text: 'Stop Loss Price:', callback_data: 'leverage_m_loss' }
+        ]);
+        inline_key.push([
+            { text: 'Smart Profit:', callback_data: 'leverage_m_smart' }
+        ]);
+        inline_key.push([
+            { text: 'Manage Position:', callback_data: 'leverage_m_manage' }
+        ]);
+        inline_key.push([
+            { text: 'Open Position', callback_data: 'leverage_m_open' }
+        ]);
+        inline_key.push([{ text: '🔙 Back', callback_data: 'to_start' }]);
+
+        const options = {
+            reply_markup: {
+                inline_keyboard: inline_key
+            }
+        };
+        await this.bot.sendMessage(userId, 'Leverage Trade Main Menu', options);
+        await this.userService.update(userId, { current_panel: PANELS.P_AUTOPOS_CREATE });
+        return;
+
+    }
+
+
+    panel_leverage_smart = async (user: UserType) => {
+
+
+    }
+
+
+    panel_leverage_manage = async (user: UserType) => {
+
+
+    }
+
+    panel_leverage_trade_confirm = async (user: UserType) => {
+
+
+    }
+
+
+
 
     generate_one_autopos_msg = async (user: UserType) => {
         const userId = user.id
@@ -1215,12 +1350,12 @@ export class TelegramService implements OnModuleInit {
         const ts = Date.now();
         var pos_msg =
             "<b>" + (Math.abs(page % p.len) + 1) + "." + position.name + "</b>\n" +
-            "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
-            "Buy at: <b>$" + position.auto.buy_price + "</b> / Sell at: <b>$"+ position.auto.sell_price+"</b>\n" +
-            "Initial: <b>" + initial_sei + " SEI</b>\n" +
-            "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
-            "Balance: <b>" + balance_token + "</b>\n" +
-            "Market Cap: <b>$" + mcap + "</b>\n\n"  
+            "💎 Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+            "💲 Buy at: <b>$" + position.auto.buy_price + "</b> / Sell at: <b>$" + position.auto.sell_price + "</b>\n" +
+            "📗 Initial: <b>" + initial_sei + " SEI</b>\n" +
+            "💸 Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
+            "💰 Balance: <b>" + balance_token + "</b>\n" +
+            "🔋 Market Cap: <b>$" + mcap + "</b>\n\n"
 
         return pos_msg;
     }
@@ -1415,11 +1550,11 @@ export class TelegramService implements OnModuleInit {
         const ts = Date.now();
         var pos_msg =
             "<b>" + (Math.abs(page % p.len) + 1) + "." + position.name + "</b>\n" +
-            "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
-            "Initial: <b>" + initial_sei + " SEI</b>\n" +
-            "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
-            "Balance: <b>" + balance_token + "</b>\n" +
-            "Market Cap: <b>$" + mcap + "</b>\n\n" 
+            "💎 Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+            "📗 Initial: <b>" + initial_sei + " SEI</b>\n" +
+            "💸 Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
+            "💰 Balance: <b>" + balance_token + "</b>\n" +
+            "🔋 Market Cap: <b>$" + mcap + "</b>\n\n"
 
         return pos_msg;
     }
@@ -1495,11 +1630,11 @@ export class TelegramService implements OnModuleInit {
 
             pos_msg = pos_msg +
                 "<b>" + idx + ". " + position.name + "</b>\n" +
-                "Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
-                "Initial: <b>" + initial_sei + " SEI</b>\n" +
-                "Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
-                "Balance: <b>" + balance_token + "</b>\n" +
-                "Market Cap: <b>$" + mcap + "</b>\n\n";
+                "💎 Profit: <b>" + profit_m_vs_sei + "SEI/" + profit_m_percent + "%</b>\n" +
+                "📗 Initial: <b>" + initial_sei + " SEI</b>\n" +
+                "💸 Price: <b>$" + Number(recent_token_data.other_2.base_token_price).toFixed(6) + "/" + a_token_vs_sei + " SEI</b>\n" +
+                "💰 Balance: <b>" + balance_token + "</b>\n" +
+                "🔋 Market Cap: <b>$" + mcap + "</b>\n\n";
         }
 
         if (postions.length == 0) {
@@ -1786,6 +1921,10 @@ export class TelegramService implements OnModuleInit {
             { text: 'Auto Trade', callback_data: 'call_m_autotrade' },
         ]);
         inline_key.push([
+            { text: 'Leverage', callback_data: 'call_m_leverage' },
+            // { text: 'Auto Trade', callback_data: 'call_m_autotrade' },
+        ]);
+        inline_key.push([
             { text: 'My Referrals', callback_data: 'call_m_referrals' },
             { text: 'Exchange', url: 'https://t.me/depyxyz_bot' }
         ]);
@@ -1868,8 +2007,8 @@ export class TelegramService implements OnModuleInit {
 
 
     // this.bot.sendMessage(userId, 💡 'Please select an option:', options 
-    // ➰ ™️ ♻️ 💲 💱 〰️ 🔆 🔅 🌱 🌳 🌴 🌲🌼🌻🌺🌸🤸 🚴🧚🔥🚧
-    // ⌛⏰💎🔋⌨️🖨️💿📗📙📒📕🏷️📝🔒🛡️⚙️🔗🥇🏆 🥈🥉🧩🎯🔙
-    // 💰 💸🚀👁️‍🗨️💯📈🆕🔄🧺🗑️📊🔎💊🔴🔵🟢🟡🟠✈️🔑🔐🧷🤩🎉🧧✨☹️
-    // ❌ ✅ 📌 🏦 ℹ️ 📍  💳 ⛽️  🕐 🔗); 🎲 🏀 🌿 💬 🔔 📢 ✔️ ⭕ 🔱
+    // ➰ ™️ ♻️ 💲 💱 〰️ 🔆 🔅 🌱 🌳 🌴 🌲🌼🌻🌺🌸🤸 🚴🧚🔥🚧 🫰 🍬 🍰 🍯 🌻
+    // ⌛⏰💎🔋⌨️🖨️💿📗📙📒📕🏷️📝🔒🛡️⚙️🔗🥇🏆 🥈🥉🧩🎯🔙 🧲 💱 🏦  👑
+    // 💰 💸🚀👁️‍🗨️💯📈🆕🔄🧺🗑️📊🔎💊🔴🟢🔵🟡🟠✈️🔑🔐🧷🤩🎉🧧✨☹️ 🤑 🐝
+    // ❌ ✅ 📌 🏦 ℹ️ 📍  💳 ⛽️  🕐 🔗); 🎲 🏀 🌿 💬 🔔 📢 ✔️ ⭕ 🔱 🌠 🧭
 }
